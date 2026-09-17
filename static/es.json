@@ -19,6 +19,9 @@
     "Serial_Killer": "Asesino"
   },
   "ui": {
+    "common": {
+      "admin_label": "ADMINISTRADOR:"
+    },
     "login": {
       "error_rate_limit": "Demasiados intentos. Por favor espera.",
       "error_name_required": "Se requiere nombre (sin caracteres especiales).",
@@ -66,6 +69,7 @@
       "set_timers_btn": "Fijar Tiempos",
       "solo_win_desc": "No esperar victorias de equipo.",
       "solo_win_mode": "Victoria solitaria termina juego",
+      "standard_mode": "Modo estándar",
       "start_game_btn": "Iniciar Juego",
       "timer_accusation": "Acusación (seg):",
       "timer_lynch": "Voto Linchamiento (seg):",
@@ -74,9 +78,19 @@
       "title": "Sala - Esperando Jugadores",
       "toggle_chat_btn": "Alternar Chat Admin",
       "waiting_text": "Esperando jugadores...",
-      "you_suffix": "(Vos)"
+      "you_suffix": "(Vos)",
+      "make_admin_title": "Hacer administrador",
+      "confirm_make_admin": "¿Hacer administrador a {name}?",
+      "alert_dropped": "Has sido eliminado de la partida.",
+      "alert_code_set": "El código de la partida se actualizó.",
+      "roles_not_loaded": "Los roles todavía no se han cargado.",
+      "random_roles_failed": "No se pudo seleccionar roles al azar.",
+      "random_roles_error": "Ocurrió un error al seleccionar roles al azar.",
+      "enter_new_code": "Introduce un nuevo código de partida:",
+      "confirm_exclude": "¿Expulsar a {name} de la sala?"
     },
     "game": {
+      "page_title": "Hombres Lobo - Partida",
       "accusation_prompt": "¿Quién es el Lobo? ¡Hora de discutir!",
       "action_submitted": "Acción registrada.",
       "alert_error": "Error: {msg}",
@@ -127,7 +141,11 @@
       "win_villagers": "¡Los Cuidadanos Ganan!",
       "win_werewolves": "¡Los Hombres Lobo Ganan!",
       "you_accused": "Has acusado a <span style='color:#ff5252'>{name}</span>.",
-      "your_role_label": "Tu Rol:"
+      "your_role_label": "Tu Rol:",
+      "transfer_admin_title": "Transferir administración",
+      "confirm_transfer_admin": "¿Transferir el control de {from_name} a {to_name}?",
+      "ghost_name": "Fantasma",
+      "unknown_message": "Mensaje desconocido"
     },
     "pnp": {
       "btn_cancel": "Cancelar",
@@ -147,6 +165,16 @@
       "identity_ask": "¿Eres <strong>{name}</strong>?",
       "identity_title": "Verificación de Identidad",
       "pass_device": "Por favor pasa el dispositivo..."
+    },
+    "errors": {
+      "game_in_progress": "La partida ya está en curso.",
+      "message_too_long": "Tu mensaje es demasiado largo.",
+      "admin_start_only": "Solo el administrador puede iniciar la partida.",
+      "minimum_players": "Se necesitan al menos {min_players} jugadores.",
+      "new_code_empty": "El nuevo código de partida no puede estar vacío.",
+      "new_code_alnum": "El nuevo código debe ser alfanumérico.",
+      "new_code_length": "El nuevo código de partida es demasiado largo.",
+      "action_ignored": "Esta acción fue ignorada."
     }
   },
   "actions": {
@@ -202,10 +230,32 @@
     "win_villagers": "Todos los Hombres Lobo han sido erradicados.",
     "win_werewolves": "Los Hombres Lobo se han apoderado del pueblo.",
     "wolf_lone": "Eres un Lobo Solitario 🐺",
-    "wolf_team": "Eres un Hombre Lobo 🐺 Tus compañeros son: <strong>{mates}</strong>."
+    "wolf_team": "Eres un Hombre Lobo 🐺 Tus compañeros son: <strong>{mates}</strong>.",
+    "timer_expired": "El temporizador de {phase} terminó.",
+    "player_joined_admin": "{name} entró en la sala.",
+    "player_joined": "{name} se unió a la partida.",
+    "player_reconnected": "{name} volvió a conectarse.",
+    "admin_reconnected": "El administrador volvió a conectarse.",
+    "player_disconnected": "{name} se desconectó.",
+    "admin_transferred": "El control se transfirió de {from_name} a {to_name}.",
+    "timers_paused": "Temporizadores pausados.",
+    "timers_resumed": "Temporizadores reanudados.",
+    "timers_updated": "Temporizadores actualizados: noche {night}s, acusación {accusation}s, linchamiento {lynch}s.",
+    "game_started": "La partida ha comenzado.",
+    "game_started_mode": "La partida comenzó en modo {mode}.",
+    "admin_advanced_phase": "El administrador avanzó la partida a {phase}.",
+    "game_over_winner": "Fin de la partida. Ganador: {winner}.",
+    "mayor_successor_selected": "{name} fue elegido sucesor del Alcalde.",
+    "mayor_successor_promoted": "¡El Alcalde ha muerto! ¡Viva el Alcalde <strong>{name}</strong>!",
+    "honeypot_retaliation_generic": "🍯 ¡El Señuelo se llevó a otro jugador consigo!",
+    "honeypot_retaliation_lynch": "🍯 <strong>{name}</strong> fue elegido entre quienes votaron el linchamiento y cayó con el Señuelo. Era <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_wolf": "🍯 La trampa del Señuelo acabó con <strong>{name}</strong> de la manada. Era <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_witch": "🍯 La trampa del Señuelo acabó con <strong>{name}</strong>. Era <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_serial": "🍯 La trampa del Señuelo acabó con <strong>{name}</strong>. Era <strong>{role}</strong> ⚰️"
   },
   "roles": {
     "Magic_User": { "name": "Usuario Mágico" },
+    "Non_Magic_User": { "name": "Usuario no mágico" },
     "Villager": {
       "name": "Cuidadano",
       "short": "Encuentra a los Hombres Lobo y vota para eliminarlos.",

@@ -8,7 +8,7 @@ GAME_DEFAULTS = {
     # Time (in seconds)
     "DEFAULT_CODE": "W",
     "DEFAULT_ADMIN_CODE": "BLM",
-    "DEFAULT_LANGUAGE": "en",
+    "DEFAULT_LANGUAGE": "vi",
     "DEFAULT_ROLES": ["Villager", "Werewolf", "Seer"],
     "ENABLE_PASS_AND_PLAY": False,
     "MIN_PLAYERS": 4,

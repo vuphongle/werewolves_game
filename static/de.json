@@ -19,6 +19,9 @@
     "Serial_Killer": "Serienmörder"
   },
   "ui": {
+    "common": {
+      "admin_label": "SPIELLEITUNG:"
+    },
     "login": {
       "error_rate_limit": "Zu viele Versuche. Bitte warten.",
       "error_name_required": "Name erforderlich (keine Sonderzeichen).",
@@ -66,6 +69,7 @@
       "set_timers_btn": "Zeiten setzen",
       "solo_win_desc": "Nicht auf Teamsiege warten.",
       "solo_win_mode": "Solo-Sieg beendet Spiel",
+      "standard_mode": "Standardmodus",
       "start_game_btn": "Spiel starten",
       "timer_accusation": "Anklage (Sek):",
       "timer_lynch": "Lynch-Wahl (Sek):",
@@ -74,9 +78,19 @@
       "title": "Lobby - Warte auf Spieler",
       "toggle_chat_btn": "Admin-Chat umschalten",
       "waiting_text": "Warte auf Spieler...",
-      "you_suffix": "(Du)"
+      "you_suffix": "(Du)",
+      "make_admin_title": "Zur Spielleitung machen",
+      "confirm_make_admin": "{name} zur Spielleitung machen?",
+      "alert_dropped": "Du wurdest aus dem Spiel entfernt.",
+      "alert_code_set": "Der Spielcode wurde aktualisiert.",
+      "roles_not_loaded": "Die Rollen wurden noch nicht geladen.",
+      "random_roles_failed": "Zufällige Rollen konnten nicht ausgewählt werden.",
+      "random_roles_error": "Beim Auswählen zufälliger Rollen ist ein Fehler aufgetreten.",
+      "enter_new_code": "Neuen Spielcode eingeben:",
+      "confirm_exclude": "{name} aus der Lobby entfernen?"
     },
     "game": {
+      "page_title": "Werwölfe - Spiel",
       "accusation_prompt": "Wer ist der Werwolf? Zeit zur Diskussion!",
       "action_submitted": "Aktion übermittelt.",
       "alert_error": "Fehler: {msg}",
@@ -127,7 +141,11 @@
       "win_villagers": "Die Dorfbewohner gewinnen!",
       "win_werewolves": "Die Werwölfe gewinnen!",
       "you_accused": "Du hast <span style='color:#ff5252'>{name}</span> angeklagt.",
-      "your_role_label": "Deine Rolle:"
+      "your_role_label": "Deine Rolle:",
+      "transfer_admin_title": "Spielleitung übertragen",
+      "confirm_transfer_admin": "Spielleitung von {from_name} an {to_name} übertragen?",
+      "ghost_name": "Geist",
+      "unknown_message": "Unbekannte Nachricht"
     },
     "pnp": {
       "btn_cancel": "Abbrechen",
@@ -147,6 +165,16 @@
       "identity_ask": "Bist du <strong>{name}</strong>?",
       "identity_title": "Identitätsprüfung",
       "pass_device": "Bitte gib das Gerät weiter..."
+    },
+    "errors": {
+      "game_in_progress": "Das Spiel läuft bereits.",
+      "message_too_long": "Deine Nachricht ist zu lang.",
+      "admin_start_only": "Nur die Spielleitung kann das Spiel starten.",
+      "minimum_players": "Mindestens {min_players} Spieler werden benötigt.",
+      "new_code_empty": "Der neue Spielcode darf nicht leer sein.",
+      "new_code_alnum": "Der neue Spielcode darf nur Buchstaben und Zahlen enthalten.",
+      "new_code_length": "Der neue Spielcode ist zu lang.",
+      "action_ignored": "Diese Aktion wurde ignoriert."
     }
   },
   "actions": {
@@ -202,10 +230,32 @@
     "win_villagers": "Alle Werwölfe wurden ausgerottet.",
     "win_werewolves": "Die Werwölfe haben das Dorf übernommen.",
     "wolf_lone": "Du bist der einsame Werwolf 🐺",
-    "wolf_team": "Du bist Werwolf 🐺 Deine Mitwölfe sind: <strong>{mates}</strong>."
+    "wolf_team": "Du bist Werwolf 🐺 Deine Mitwölfe sind: <strong>{mates}</strong>.",
+    "timer_expired": "Der Timer für {phase} ist abgelaufen.",
+    "player_joined_admin": "{name} ist der Lobby beigetreten.",
+    "player_joined": "{name} ist dem Spiel beigetreten.",
+    "player_reconnected": "{name} hat die Verbindung wiederhergestellt.",
+    "admin_reconnected": "Die Spielleitung hat die Verbindung wiederhergestellt.",
+    "player_disconnected": "{name} hat die Verbindung getrennt.",
+    "admin_transferred": "Die Spielleitung wurde von {from_name} an {to_name} übertragen.",
+    "timers_paused": "Timer pausiert.",
+    "timers_resumed": "Timer fortgesetzt.",
+    "timers_updated": "Timer aktualisiert: Nacht {night}s, Anklage {accusation}s, Lynch-Wahl {lynch}s.",
+    "game_started": "Das Spiel hat begonnen.",
+    "game_started_mode": "Das Spiel hat im Modus {mode} begonnen.",
+    "admin_advanced_phase": "Die Spielleitung hat das Spiel zu {phase} weitergeschaltet.",
+    "game_over_winner": "Spiel beendet. Gewinner: {winner}.",
+    "mayor_successor_selected": "{name} wurde als Nachfolger des Bürgermeisters gewählt.",
+    "mayor_successor_promoted": "Der Bürgermeister ist tot. Es lebe Bürgermeister <strong>{name}</strong>!",
+    "honeypot_retaliation_generic": "🍯 Der Lockvogel riss einen weiteren Spieler mit sich!",
+    "honeypot_retaliation_lynch": "🍯 <strong>{name}</strong> wurde aus der Lynchgruppe ausgewählt und fiel mit dem Lockvogel. Die Rolle war <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_wolf": "🍯 Die Falle des Lockvogels erwischte <strong>{name}</strong> aus dem Werwolfsrudel. Die Rolle war <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_witch": "🍯 Die Falle des Lockvogels erwischte <strong>{name}</strong>. Die Rolle war <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_serial": "🍯 Die Falle des Lockvogels erwischte <strong>{name}</strong>. Die Rolle war <strong>{role}</strong> ⚰️"
   },
   "roles": {
     "Magic_User": { "name": "Magienutzer" },
+    "Non_Magic_User": { "name": "Nichtmagischer Nutzer" },
     "Villager": {
       "name": "Dorfbewohner",
       "short": "Finde die Werwölfe und wähle sie raus.",

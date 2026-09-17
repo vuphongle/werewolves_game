@@ -1,10 +1,10 @@
 <!-- Version: 5.1.0 -->
 <!doctype html>
-<html lang="en">
+<html lang="{{ session.get('language', 'vi') }}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Werewolves Lobby</title>
+    <title>Phòng chờ Ma Sói</title>
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='lobby.css') }}"
@@ -14,35 +14,35 @@
   </head>
   <body>
     <div class="lobby-container">
-      <h2 data-i18n="ui.lobby.title">Lobby - Waiting for Players</h2>
+      <h2 data-i18n="ui.lobby.title">Phòng chờ - Đang chờ người chơi</h2>
       <p id="game-code-area" style="display: none; margin-bottom: 5px">
-        <span data-i18n="ui.lobby.game_code">Game Code:</span>
+        <span data-i18n="ui.lobby.game_code">Mã trò chơi:</span>
         <strong id="game-code-display"></strong>
       </p>
 
       <h3 style="margin: 0px">
-        <span data-i18n="ui.lobby.players_header">Players:</span>
+        <span data-i18n="ui.lobby.players_header">Người chơi:</span>
         <button id="add-player-btn" data-i18n="ui.lobby.add_player_btn">
-          Add Player
+          Thêm người chơi
         </button>
       </h3>
       <ul id="player-list"></ul>
 
       <div id="role-summary-container">
-        <strong data-i18n="ui.lobby.role_count_label">ROLE COUNT:</strong>
+        <strong data-i18n="ui.lobby.role_count_label">SỐ VAI:</strong>
         <span id="role-summary-text" data-i18n="ui.lobby.waiting_text"
-          >Waiting for players...</span
+          >Đang chờ người chơi...</span
         >
       </div>
 
       <div class="chat-container">
-        <h4 data-i18n="ui.lobby.chat_header">Lobby Chat</h4>
+        <h4 data-i18n="ui.lobby.chat_header">Chat phòng chờ</h4>
         <div id="chat-messages" class="chat-messages"></div>
         <form id="chat-form" action="#">
           <input
             id="chat-input"
             type="text"
-            placeholder="Type a message..."
+            placeholder="Nhập tin nhắn..."
             autocomplete="off"
             data-i18n-placeholder="ui.lobby.chat_placeholder"
           />
@@ -51,27 +51,27 @@
             type="submit"
             data-i18n="ui.lobby.send_btn"
           >
-            Send
+            Gửi
           </button>
         </form>
       </div>
 
       <div id="admin-panel" style="display: none">
         <hr />
-        <h3 data-i18n="ui.lobby.admin_header">Admin Controls</h3>
+        <h3 data-i18n="ui.lobby.admin_header">Điều khiển quản trò</h3>
         <div style="margin-bottom: 20px">
           <button
             id="start-game-btn"
             disabled
             data-i18n="ui.lobby.start_game_btn"
           >
-            Start Game
+            Bắt đầu trò chơi
           </button>
           <p id="min-players-warning">
             <small
               style="color: firebrick"
               data-i18n="ui.lobby.min_players_warning"
-              >Need at least 4 players to start.</small
+              >Cần ít nhất 4 người chơi để bắt đầu.</small
             >
           </p>
         </div>
@@ -79,16 +79,16 @@
         <div class="admin-controls">
           <div class="settings-row">
             <div class="settings-group">
-              <h4 data-i18n="ui.lobby.game_mode_header">Game Mode</h4>
+              <h4 data-i18n="ui.lobby.game_mode_header">Chế độ trò chơi</h4>
 
               <label>
                 <input type="checkbox" id="mode-pass-and-play" />
                 <div>
                   <strong data-i18n="ui.lobby.pnp_mode"
-                    >Pass-and-Play Mode</strong
+                    >Chế độ chuyền thiết bị</strong
                   ><br />
                   <small style="color: darkgray" data-i18n="ui.lobby.pnp_desc"
-                    >Single device mode. Pauses turns.</small
+                    >Chơi trên một thiết bị, tạm dừng giữa các lượt.</small
                   >
                 </div>
               </label>
@@ -97,12 +97,12 @@
                 <input type="checkbox" id="mode-solo-ends-game" />
                 <div>
                   <strong data-i18n="ui.lobby.solo_win_mode"
-                    >Solo win ends game</strong
+                    >Thắng đơn kết thúc trò chơi</strong
                   ><br />
                   <small
                     style="color: darkgray"
                     data-i18n="ui.lobby.solo_win_desc"
-                    >Don't wait for team wins.</small
+                    >Không cần chờ cả đội thắng.</small
                   >
                 </div>
               </label>
@@ -110,9 +110,9 @@
               <label>
                 <input type="checkbox" id="mode-pg" />
                 <div>
-                  <strong data-i18n="ui.lobby.pg_mode">PG Mode</strong><br />
+                  <strong data-i18n="ui.lobby.pg_mode">Chế độ PG</strong><br />
                   <small style="color: darkgray" data-i18n="ui.lobby.pg_desc"
-                    >Family-friendly day prompts.</small
+                    >Gợi ý ban ngày phù hợp với gia đình.</small
                   >
                 </div>
               </label>
@@ -121,10 +121,10 @@
                 <input type="checkbox" id="ghost-mode-checkbox" />
                 <div>
                   <strong data-i18n="ui.lobby.ghost_mode"
-                    >Enable Ghost Mode</strong
+                    >Bật chế độ hồn ma</strong
                   ><br />
                   <small style="color: darkgray" data-i18n="ui.lobby.ghost_desc"
-                    >Dead can vote...sometimes.</small
+                    >Người đã chết đôi khi có thể bỏ phiếu.</small
                   >
                 </div>
               </label>
@@ -132,13 +132,13 @@
 
             <div class="settings-group">
               <h4 data-i18n="ui.lobby.timers_header">
-                Timer Settings (+30sec)
+                Cài đặt thời gian (+30 giây)
               </h4>
               <div>
                 <label for="disable-timers-checkbox" style="color: gainsboro">
                   <input type="checkbox" id="disable-timers-checkbox" />
                   <strong data-i18n="ui.lobby.disable_timers"
-                    >Disable Timers</strong
+                    >Tắt bộ đếm thời gian</strong
                   >
                 </label>
               </div>
@@ -148,7 +148,7 @@
                   <label
                     for="night-timer-input"
                     data-i18n="ui.lobby.timer_night"
-                    >Night (sec):</label
+                    >Ban đêm (giây):</label
                   >
                   <input
                     type="number"
@@ -162,7 +162,7 @@
                   <label
                     for="accusation-timer-input"
                     data-i18n="ui.lobby.timer_accusation"
-                    >Accusation (sec):</label
+                    >Chỉ điểm (giây):</label
                   >
                   <input
                     type="number"
@@ -176,7 +176,7 @@
                   <label
                     for="lynch-vote-timer-input"
                     data-i18n="ui.lobby.timer_lynch"
-                    >Lynch Vote (sec):</label
+                    >Bỏ phiếu xử (giây):</label
                   >
                   <input
                     type="number"
@@ -193,96 +193,90 @@
                 style="width: 50%; margin-top: 10px"
                 data-i18n="ui.lobby.set_timers_btn"
               >
-                Set Timers
+                Đặt thời gian
               </button>
             </div>
           </div>
         </div>
         <div class="admin-controls">
           <h4>
-            <span data-i18n="ui.lobby.roles_header">Roles</span>
+            <span data-i18n="ui.lobby.roles_header">Các vai</span>
             <button
               id="random-roles-btn"
               onclick="selectRandomRoles()"
               data-i18n="ui.lobby.random_roles_btn"
-            >
-              🎲 Select Random Roles
+              >
+              🎲 Chọn vai ngẫu nhiên
             </button>
 
             <span class="rating-legend-wrapper">
               <span class="info-icon" data-i18n="ui.lobby.rating_guide"
-                >💡 Rating Guide</span
+                >💡 Hướng dẫn cân bằng</span
               >
               <div class="legend-tooltip">
                 <strong data-i18n="ui.lobby.rating_title"
-                  >Role Balance Rating:</strong
+                  >Đánh giá cân bằng vai:</strong
                 >
                 <div class="legend-item">
                   <span class="dot" style="background: blue"></span>
                   <span data-i18n="ui.lobby.rating_pos"
-                    >+ Positive: Villager Aligned</span
+                    >+ Dương: Phe dân làng</span
                   >
                 </div>
                 <div class="legend-item">
                   <span class="dot" style="background: darkviolet"></span>
                   <span data-i18n="ui.lobby.rating_neu"
-                    >~ Zero: Neutral / Unknown</span
+                    >~ Không: Trung lập / Chưa biết</span
                   >
                 </div>
                 <div class="legend-item">
                   <span class="dot" style="background: crimson"></span>
                   <span data-i18n="ui.lobby.rating_neg"
-                    >- Negative: Werewolf Aligned</span
+                    >- Âm: Phe ma sói</span
                   >
                 </div>
                 <hr style="border-color: #444; margin: 5px 0" />
                 <small data-i18n="ui.lobby.rating_note"
-                  >"Random" button selects balanced roles with a total value
-                  close to 0. Role's night actions are processed in ascending
-                  order, so 1 goes before 2.</small
+                  >Nút "Ngẫu nhiên" chọn các vai cân bằng với tổng giá trị gần
+                  0. Hành động ban đêm được xử lý theo thứ tự tăng dần, nên vai
+                  1 được xử lý trước vai 2.</small
                 >
               </div>
             </span>
           </h4>
           <div id="roles-grid">
-            <p>Loading roles...</p>
+            <p data-i18n="ui.game.loading">Đang tải...</p>
           </div>
         </div>
 
         <div class="admin-controls">
           <label for="new-game-code-input" data-i18n="ui.lobby.set_code_label"
-            >Set New Game Code:</label
+            >Đặt mã trò chơi mới:</label
           >
           <input
             type="text"
             id="new-game-code-input"
-            placeholder="New Code"
+            placeholder="Mã mới"
             style="margin: 8px"
             data-i18n-placeholder="ui.lobby.new_code_placeholder"
           />
           <button id="set-code-btn" data-i18n="ui.lobby.set_code_btn">
-            Set Code
+            Đặt mã
           </button>
           <button
             id="toggle-chat-btn"
             style="margin-left: 10px"
             data-i18n="ui.lobby.toggle_chat_btn"
           >
-            Toggle Admin Chat
+            Bật/tắt chat quản trò
           </button>
         </div>
       </div>
     </div>
     <script>
       let currentPlayerId = "{{ player_id }}";
-      window.userLang = "{{ session.get('language', 'en') }}";
+      window.userLang = "{{ session.get('language', 'vi') }}";
     </script>
     <script src="{{ url_for('static', filename='lobby.js') }}"></script>
-    <div style="color: #faf; font-size: 12px">
-      source code:
-      <a href="https://github.com/davidchilin/werewolves_game"
-        >https://github.com/davidchilin/werewolves_game</a
-      >
-    </div>
   </body>
 </html>

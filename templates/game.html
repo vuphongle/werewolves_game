@@ -1,10 +1,10 @@
 <!-- Version: 5.0.0 -->
 <!doctype html>
-<html lang="en">
+<html lang="{{ session.get('language', 'vi') }}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Werewolves - The Game</title>
+    <title>Ma Sói - Trò chơi</title>
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='game.css') }}"
@@ -14,13 +14,13 @@
   </head>
   <body>
     <div id="pnp-hub">
-      <h2 data-i18n="ui.game.night_phase_title">Night Phase 🌙</h2>
+      <h2 data-i18n="ui.game.night_phase_title">Giai đoạn ban đêm 🌙</h2>
       <p data-i18n="ui.game.pnp_instruction">
-        Select your name to perform player actions.
+        Chọn tên của bạn để thực hiện hành động.
       </p>
       <div id="pnp-grid" class="pnp-grid"></div>
       <div id="pnp-log-container">
-        <h3 data-i18n="ui.game.game_log_title">Game Log</h3>
+        <h3 data-i18n="ui.game.game_log_title">Nhật ký trò chơi</h3>
       </div>
       <div class="pnp-footer">
         <button
@@ -29,7 +29,7 @@
           style="width: auto; padding: 10px"
           data-i18n="ui.game.force_phase_btn"
         >
-          Force Next Phase
+          Chuyển sang giai đoạn tiếp theo
         </button>
       </div>
     </div>
@@ -37,7 +37,7 @@
     <div id="pnp-overlay">
       <div class="confirm-box">
         <h2 id="overlay-title" data-i18n="ui.game.identity_check_title">
-          Identity Check
+          Xác nhận danh tính
         </h2>
         <p id="overlay-msg">...</p>
         <div id="overlay-actions"></div>
@@ -52,14 +52,14 @@
           class="phase-display"
           data-i18n="ui.game.loading"
         >
-          Loading...
+          Đang tải...
         </div>
         <div id="timer-display" class="timer-display"></div>
         <div id="action-area" class="action-area">
-          <p data-i18n="ui.game.loading">Please wait...</p>
+          <p data-i18n="ui.game.loading">Vui lòng chờ...</p>
         </div>
 
-        <h3 data-i18n="ui.game.game_log_title">Game Log</h3>
+        <h3 data-i18n="ui.game.game_log_title">Nhật ký trò chơi</h3>
         <div id="log-panel" class="log-panel"></div>
       </div>
 
@@ -70,42 +70,42 @@
           onclick="requestGameSync()"
           data-i18n="ui.game.done_back_btn"
         >
-          Done / Back
+          Hoàn tất / Quay lại
         </button>
         <div id="role-display" class="role-display">
           <span id="my-role-display">
-            <span data-i18n="ui.game.your_role_label">Your Role:</span>
-            <strong id="my-role">Unknown</strong> ✨
+            <span data-i18n="ui.game.your_role_label">Vai của bạn:</span>
+            <strong id="my-role">Chưa biết</strong> ✨
             <div id="my-role-tooltip" data-i18n="ui.game.loading">
-              Loading info...
+              Đang tải thông tin...
             </div>
           </span>
         </div>
 
         <div id="admin-controls-ingame" style="display: none">
           <button id="admin-next-phase-btn" data-i18n="ui.game.next_phase_btn">
-            Next Phase
+            Giai đoạn tiếp theo
           </button>
           <button
             id="admin-pause-timer-btn"
             data-i18n="ui.game.pause_timers_btn"
           >
-            Pause Timers ⏸️
+            Tạm dừng thời gian ⏸️
           </button>
           <button
             id="admin-chat-toggle-btn"
             data-i18n="ui.lobby.toggle_chat_btn"
           >
-            Toggle Admin Chat
+            Bật/tắt chat quản trò
           </button>
         </div>
 
-        <h3 data-i18n="ui.game.players_header">Players</h3>
+        <h3 data-i18n="ui.game.players_header">Người chơi</h3>
         <ul id="player-list" class="player-list"></ul>
 
         <div id="game-chat-container" class="chat-container">
           <h4 id="chat-title" data-i18n="ui.game.living_chat_title">
-            Living Chat
+            Trò chuyện người sống
           </h4>
           <div id="game-chat-messages" class="chat-messages"></div>
           <form id="game-chat-form" class="chat-form" action="#">
@@ -113,7 +113,7 @@
               id="game-chat-input"
               class="chat-input"
               type="text"
-              placeholder="Type a message..."
+              placeholder="Nhập tin nhắn..."
               autocomplete="off"
               data-i18n-placeholder="ui.lobby.chat_placeholder"
             />
@@ -123,51 +123,37 @@
               data-i18n="ui.lobby.send_btn"
               style="border-radius: 5px"
             >
-              Send
+              Gửi
             </button>
           </form>
         </div>
 
-        <div
-          style="
-            color: #faf;
-            font-size: 12px;
-            width: 100;
-            text-align: center;
-            padding-top: 10px;
-          "
-        >
-          source code:
-          <a href="https://github.com/davidchilin/werewolves_game"
-            >https://github.com/davidchilin/werewolves_game</a
-          >
-        </div>
       </div>
     </div>
 
     <div id="game-over-screen">
       <div class="game-over-box">
         <h1 id="game-over-title" data-i18n="ui.game.game_over_title">
-          Game Over
+          Trò chơi kết thúc
         </h1>
         <h2 id="game-over-reason"></h2>
-        <h3 data-i18n="ui.game.final_roles">Final Roles:</h3>
+        <h3 data-i18n="ui.game.final_roles">Vai cuối cùng:</h3>
         <ul id="final-roles-list"></ul>
         <button id="return-to-lobby-btn" data-i18n="ui.game.return_lobby_btn">
-          Vote to Return to Lobby
+          Bỏ phiếu quay lại sảnh
         </button>
         <div id="rematch-vote-status" style="margin-top: 14px"></div>
-        <h3 data-i18n="ui.game.game_history">Game History</h3>
+        <h3 data-i18n="ui.game.game_history">Lịch sử trò chơi</h3>
         <div id="game-over-log" class="game-over-log"></div>
         <div id="game-over-chat-container" class="chat-container">
-          <h4 data-i18n="ui.game.post_game_chat">Post-Game Chat</h4>
+          <h4 data-i18n="ui.game.post_game_chat">Trò chuyện sau trò chơi</h4>
           <div id="game-over-chat-messages" class="chat-messages"></div>
           <form id="game-over-chat-form" class="chat-form" action="#">
             <input
               id="game-over-chat-input"
               class="chat-input"
               type="text"
-              placeholder="Type a message..."
+              placeholder="Nhập tin nhắn..."
               autocomplete="off"
               data-i18n-placeholder="ui.lobby.chat_placeholder"
             />
@@ -176,7 +162,7 @@
               type="submit"
               data-i18n="ui.lobby.send_btn"
             >
-              Send
+              Gửi
             </button>
           </form>
         </div>
@@ -185,7 +171,7 @@
 
     <script>
       let myPlayerId = "{{ player_id }}"; // Injected by Flask
-      window.userLang = "{{ session.get('language', 'en') }}";
+      window.userLang = "{{ session.get('language', 'vi') }}";
     </script>
     <script src="{{ url_for('static', filename='game.js') }}"></script>
   </body>

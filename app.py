@@ -80,7 +80,7 @@ def flatten_dict(d, parent_key='', sep='.'):
 
 # Load and Flatten Translations immediately on startup
 TRANSLATIONS = {}
-for lang in ["en", "es", "de", "zh"]:
+for lang in ["en", "es", "de", "zh", "vi"]:
     # Create the full path: /.../app/src/main/python/static/en.json
     file_path = join(dirname(__file__), "static", f"{lang}.json")
     try:
@@ -91,12 +91,14 @@ for lang in ["en", "es", "de", "zh"]:
     except FileNotFoundError:
         print(f"Warning: {lang}.json not found at {file_path}")
 
-def t_server(key, lang="en"):
-    # 1. Select Dictionary (Fallback to EN if language missing)
-    dataset = TRANSLATIONS.get(lang, TRANSLATIONS.get("en", {}))
-
-    # 2. Direct Lookup (No splitting, no looping)
-    return dataset.get(key, key)
+def t_server(key, lang=None):
+    # Try the requested locale, configured default, and English in that order.
+    locales = [lang or GAME_DEFAULTS["DEFAULT_LANGUAGE"], GAME_DEFAULTS["DEFAULT_LANGUAGE"], "en"]
+    for locale in dict.fromkeys(locales):
+        value = TRANSLATIONS.get(locale, {}).get(key)
+        if value is not None:
+            return value
+    return key
 
 # --- Global State ---
 game_instance = Game("main_game")
@@ -162,7 +164,7 @@ lobby_state = {
 
 
 class PlayerWrapper:
-    def __init__(self, name, sid, language="en"):
+    def __init__(self, name, sid, language=GAME_DEFAULTS["DEFAULT_LANGUAGE"]):
         self.name = name
         self.sid = sid
         self.is_admin = False
@@ -177,8 +179,8 @@ def get_player_by_sid(sid):
     return None, None
 
 
-def log_and_emit(message):
-    print(message)
+def log_and_emit(message, log_text=None):
+    print(log_text if log_text is not None else message)
     socketio.emit("log_message", {"text": message}, to=game["game_code"])
 
 
@@ -216,7 +218,7 @@ def get_public_game_state():
     try:
         all_players_data = []
         for p in game_instance.players.values():
-            lang = "en"
+            lang = GAME_DEFAULTS["DEFAULT_LANGUAGE"]
             if p.id in game["players"]:
                 lang = game["players"][p.id].language
 
@@ -343,8 +345,8 @@ def generate_player_payload(player_id, player_wrapper=None, public_data=None):
     if not target_wrapper:
         target_wrapper = game["players"].get(player_id)
 
-    # Default to 'en' if missing
-    player_lang = "en"
+    # Default to the configured locale if missing
+    player_lang = GAME_DEFAULTS["DEFAULT_LANGUAGE"]
     if target_wrapper and hasattr(target_wrapper, "language"):
         player_lang = target_wrapper.language
     # 4. Merge Private Data with Public Data
@@ -404,7 +406,10 @@ def background_game_loop():
         with app.app_context():
             result = game_instance.tick()
             if result == "TIMEOUT":
-                log_and_emit(f"Timer expired for {game_instance.phase}.")
+                log_and_emit(
+                    {"key": "events.timer_expired", "variables": {"phase": game_instance.phase}},
+                    f"Timer expired for {game_instance.phase}.",
+                )
                 if game_instance.phase == PHASE_NIGHT:
                     resolve_night()
                 elif game_instance.phase == PHASE_ACCUSATION:
@@ -474,13 +479,15 @@ def index():
         )
     # login properly then redirect to lobby
     if request.method == "POST":
-        lang = request.form.get("language", "en")
+        lang = request.form.get("language", GAME_DEFAULTS["DEFAULT_LANGUAGE"])
         # join rate limiting
         client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
         current_time = time.time()
         last_attempt_time = join_attempts.get(client_ip, 0)
         if current_time - last_attempt_time < 2.0:
-            return render_template("index.html", error="Too many attempts. Please wait.")
+            return render_template(
+                "index.html", error=t_server("ui.login.error_rate_limit", lang)
+            )
         # Update the timestamp for this IP
         join_attempts[client_ip] = current_time
 
@@ -489,25 +496,43 @@ def index():
         code = request.form.get("game_code", "").strip().upper()
 
         if not name:
-            return render_template("index.html", error=t_server("ui.login.error_name_required", lang))
+            return render_template(
+                "index.html", error=t_server("ui.login.error_name_required", lang)
+            )
         if len(name) > 20:
-            return render_template("index.html", error=t_server("ui.login.error_name_length", lang))
+            return render_template(
+                "index.html", error=t_server("ui.login.error_name_length", lang)
+            )
         if not code:
-            return render_template("index.html", error=t_server("ui.login.error_code_required", lang))
+            return render_template(
+                "index.html", error=t_server("ui.login.error_code_required", lang)
+            )
         if not code.isalnum():
-            return render_template("index.html", error=t_server("ui.login.error_code_alnum", lang))
+            return render_template(
+                "index.html", error=t_server("ui.login.error_code_alnum", lang)
+            )
         if len(code) > 20:
-            return render_template("index.html", error=t_server("ui.login.error_code_length", lang))
+            return render_template(
+                "index.html", error=t_server("ui.login.error_code_length", lang)
+            )
         if code != game["game_code"] and code != game["game_admin_code"]:
-            return render_template("index.html", error=t_server("ui.login.error_code_invalid", lang))
+            return render_template(
+                "index.html", error=t_server("ui.login.error_code_invalid", lang)
+            )
         if len(game["players"]) >= 32:
-             return render_template("index.html", error=t_server("ui.login.error_lobby_full", lang))
+            return render_template(
+                "index.html", error=t_server("ui.login.error_lobby_full", lang)
+            )
         if game["game_state"] != PHASE_LOBBY:
-             return render_template("index.html", error=t_server("ui.login.error_too_late", lang))
+            return render_template(
+                "index.html", error=t_server("ui.login.error_too_late", lang)
+            )
 
         for p in game["players"].values():
             if p.name.lower() == name.lower():
-                return render_template("index.html", error=t_server("ui.login.error_name_taken", lang))
+                return render_template(
+                    "index.html", error=t_server("ui.login.error_name_taken", lang)
+                )
 
         session["language"] = lang
         session["player_id"], session["name"] = str(uuid.uuid4()), name
@@ -622,8 +647,8 @@ def handle_connect(auth=None):
     # This logic handles both new players joining the lobby and existing players reconnecting.
     if player_id not in game["players"]:
         if game["game_state"] != PHASE_LOBBY:
-            return emit("error", {"message": "Game in progress."})
-        lang = session.get("language", "en")
+            return emit("error", {"message": {"key": "ui.errors.game_in_progress", "variables": {}}})
+        lang = session.get("language", GAME_DEFAULTS["DEFAULT_LANGUAGE"])
         new_player = PlayerWrapper(session.get("name"), request.sid, language=lang)
         # set first player in room to be admin, if no admin from previous match
         # OR if we are in Pass-and-Play mode, grant admin to the newly added player
@@ -632,18 +657,29 @@ def handle_connect(auth=None):
         if not game["admin_sid"] or is_pnp or session.get("admin_code"):
             new_player.is_admin = True
             game["admin_sid"] = request.sid
-            log_and_emit(f"===> +++ New player Admin {new_player.name} added to game.")
+            log_and_emit(
+                {"key": "events.player_joined_admin", "variables": {"name": new_player.name}},
+                f"===> +++ New player Admin {new_player.name} added to game.",
+            )
         game["players"][player_id] = new_player
-        log_and_emit(f"===> +++ New player {new_player.name} added to game.")
+        log_and_emit(
+            {"key": "events.player_joined", "variables": {"name": new_player.name}},
+            f"===> +++ New player {new_player.name} added to game.",
+        )
     # reconnecting player
     else:
         game["players"][player_id].sid = request.sid
-        log_and_emit(f"===> Player {game['players'][player_id].name} reconnected.")
+        player_name = game["players"][player_id].name
+        log_and_emit(
+            {"key": "events.player_reconnected", "variables": {"name": player_name}},
+            f"===> Player {player_name} reconnected.",
+        )
         # reestablish admin for new game/rematch
         if game["players"][player_id].is_admin:
             game["admin_sid"] = request.sid
             log_and_emit(
-                f"===> Admin {game['players'][player_id].name} confirmed and SID updated."
+                {"key": "events.admin_reconnected", "variables": {"name": player_name}},
+                f"===> Admin {player_name} confirmed and SID updated.",
             )
     join_room(game["game_code"])
 
@@ -666,7 +702,11 @@ def handle_connect(auth=None):
 def handle_disconnect():
     player_id, _ = get_player_by_sid(request.sid)
     if player_id and player_id in game["players"]:
-        log_and_emit(f"==== Player {game['players'][player_id].name} disconnected ====")
+        player_name = game["players"][player_id].name
+        log_and_emit(
+            {"key": "events.player_disconnected", "variables": {"name": player_name}},
+            f"==== Player {player_name} disconnected ====",
+        )
 
 
 @socketio.on("join_game")
@@ -700,7 +740,7 @@ def handle_send_message(data):
     raw_msg = data.get("message", "").strip()
     msg = html.escape(raw_msg)
     if len(msg) > 500:
-        return emit("error", {"message": "Message too long."})
+        return emit("error", {"message": {"key": "ui.errors.message_too_long", "variables": {}}})
     if not msg:
         return
     phase = game_instance.phase
@@ -712,7 +752,11 @@ def handle_send_message(data):
             # Admin overrides restriction -> Sends as Announcement
             socketio.emit(
                 "new_message",
-                {"text": f"<strong>ADMIN:</strong> {msg}", "channel": "announcement"},
+                {
+                    "text": msg,
+                    "label_key": "ui.common.admin_label",
+                    "channel": "announcement",
+                },
                 to=game["game_code"],
             )
         else:
@@ -773,7 +817,15 @@ def handle_admin_transfer(data):
     # 2. Update Global SID
     game["admin_sid"] = game["players"][target_id].sid
 
-    log_and_emit(f"===> Admin transferred from {game['players'][current_admin_id].name} to {game['players'][target_id].name}")
+    from_name = game["players"][current_admin_id].name
+    to_name = game["players"][target_id].name
+    log_and_emit(
+        {
+            "key": "events.admin_transferred",
+            "variables": {"from_name": from_name, "to_name": to_name},
+        },
+        f"===> Admin transferred from {from_name} to {to_name}",
+    )
 
     # 3. Broadcast updates
     if game["game_state"] == PHASE_LOBBY:
@@ -817,8 +869,16 @@ def handle_admin_set_timers(data):
 
     if "timers_disabled" in data:
         game_instance.timers_disabled = data["timers_disabled"]
-        status = "Paused" if game_instance.timers_disabled else "Resumed"
-        log_and_emit(f"Admin has {status} the timers.")
+        if game_instance.timers_disabled:
+            log_and_emit(
+                {"key": "events.timers_paused", "variables": {}},
+                "Admin has Paused the timers.",
+            )
+        else:
+            log_and_emit(
+                {"key": "events.timers_resumed", "variables": {}},
+                "Admin has Resumed the timers.",
+            )
         # Broadcast the new state so UI updates immediately
         broadcast_game_state()
 
@@ -842,7 +902,17 @@ def handle_admin_set_timers(data):
                     pass
         if updated_timers:
             emit("admin_timers_updated", {"timers": updated_timers})
-            log_and_emit(f"Admin set new timer durations: {updated_timers}")
+            log_and_emit(
+                {
+                    "key": "events.timers_updated",
+                    "variables": {
+                        "night": game_instance.timer_durations[PHASE_NIGHT],
+                        "accusation": game_instance.timer_durations[PHASE_ACCUSATION],
+                        "lynch": game_instance.timer_durations[PHASE_LYNCH],
+                    },
+                },
+                f"Admin set new timer durations: {updated_timers}",
+            )
 
 
 @socketio.on("admin_exclude_player")
@@ -865,17 +935,29 @@ def handle_start_game(data):
     is_pnp = settings.get("mode") == "pass_and_play"
 
     if request.sid != game.get("admin_sid") and not is_pnp:
-        return emit("error", {"message": "Only the admin can start the game."})
+        return emit(
+            "error",
+            {"message": {"key": "ui.errors.admin_start_only", "variables": {}}},
+        )
     if len(game["players"]) < GAME_DEFAULTS["MIN_PLAYERS"]:
         return emit(
             "error",
             {
-                "message": "Cannot start with fewer than {GAME_DEFAULTS['MIN_PLAYERS']} players."
+                "message": {
+                    "key": "ui.errors.minimum_players",
+                    "variables": {"min_players": GAME_DEFAULTS["MIN_PLAYERS"]},
+                }
             },
         )
     if game.get("game_state") != PHASE_LOBBY:
-        return emit("error", {"message": "Game is already in progress."})
-    log_and_emit("===> Admin started game. Assigning roles.")
+        return emit(
+            "error",
+            {"message": {"key": "ui.errors.game_in_progress", "variables": {}}},
+        )
+    log_and_emit(
+        {"key": "events.game_started", "variables": {}},
+        "===> Admin started game. Assigning roles.",
+    )
     global game_loop_running
     if not game_loop_running:
         game_loop_running = True
@@ -904,7 +986,10 @@ def handle_start_game(data):
     game_instance.players = {}
     for pid, obj in game["players"].items():
         game_instance.add_player(pid, obj.name)
-    log_and_emit(f"===> Game Started! Mode: {game_instance.mode}")
+    log_and_emit(
+        {"key": "events.game_started_mode", "variables": {"mode": game_instance.mode}},
+        f"===> Game Started! Mode: {game_instance.mode}",
+    )
     game_instance.assign_roles(data.get("roles", []))
     game["game_state"] = "started"
     socketio.emit("game_started", to=game["game_code"])
@@ -921,7 +1006,10 @@ def handle_admin_next_phase(data=None):
             return
 
     current_phase = game_instance.phase
-    log_and_emit(f"Admin is advancing the phase from {current_phase}.")
+    log_and_emit(
+        {"key": "events.admin_advanced_phase", "variables": {"phase": current_phase}},
+        f"Admin is advancing the phase from {current_phase}.",
+    )
     if current_phase == PHASE_NIGHT:
         resolve_night()
     elif current_phase == PHASE_ACCUSATION:
@@ -1026,7 +1114,10 @@ def check_game_over_or_next_phase():
         if data:
             game["game_over_data"] = data
             winner = data.get("winning_team", "Unknown")
-            log_and_emit(f"Game Over! The {winner} have won.")
+            log_and_emit(
+                {"key": "events.game_over_winner", "variables": {"winner": winner}},
+                f"Game Over! The {winner} have won.",
+            )
     else:
         game_instance.advance_phase()
     broadcast_game_state()
@@ -1039,13 +1130,20 @@ def handle_admin_set_new_code(data):
         return
     new_code = data.get("new_code", "").strip().upper()
     if not new_code:
-        return emit("error", {"message": "New code cannot be empty."})
+        return emit(
+            "error",
+            {"message": {"key": "ui.errors.new_code_empty", "variables": {}}},
+        )
     if not new_code.isalnum():
         return emit(
-            "error", {"message": "Code must be alphanumeric (Letters/Numbers only)."}
+            "error",
+            {"message": {"key": "ui.errors.new_code_alnum", "variables": {}}},
         )
     if len(new_code) > 20:
-        return emit("error", {"message": "Code must be 20 characters or fewer."})
+        return emit(
+            "error",
+            {"message": {"key": "ui.errors.new_code_length", "variables": {}}},
+        )
     admin_id, admin_player = get_player_by_sid(request.sid)
     if not admin_player:
         return
@@ -1201,7 +1299,10 @@ def handle_hero_choice(data):
                 return emit("pnp_state_sync", payload)
         return broadcast_game_state()
     if result == "IGNORED":
-        return emit("error", {"message": "Action ignored."})
+        return emit(
+            "error",
+            {"message": {"key": "ui.errors.action_ignored", "variables": {}}},
+        )
     if result == "RESOLVED":
         return resolve_night()
     player_obj = game_instance.players.get(player_id)
