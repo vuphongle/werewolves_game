@@ -179,6 +179,83 @@ def get_player_by_sid(sid):
     return None, None
 
 
+def reset_active_game_to_lobby():
+    """Reset an active match while preserving the room and connected players."""
+    global game_instance
+
+    previous_game = game_instance
+    with previous_game.lock:
+        settings = dict(getattr(previous_game, "settings", {}) or {})
+        # Make an already-expiring phase harmless before swapping the instance.
+        previous_game.timers_disabled = True
+        previous_game.phase_end_time = 0
+        previous_game.current_timer_id += 1
+
+    reset_game = Game("main_game", settings=settings)
+    for player_id, player_wrapper in game["players"].items():
+        reset_game.add_player(player_id, player_wrapper.name)
+
+    game_instance = reset_game
+    game["game_state"] = PHASE_LOBBY
+    game["game_over_data"] = None
+
+
+HIDDEN_ROLE_MESSAGE_KEYS = {
+    "events.death_honey": "events.death_honey_hidden",
+    "events.death_love": "events.death_love_hidden",
+    "events.death_retaliation": "events.death_retaliation_hidden",
+    "events.death_reveal_wolf": "events.death_reveal_wolf_hidden",
+    "events.death_serial": "events.death_serial_hidden",
+    "events.death_witch": "events.death_witch_hidden",
+    "events.death_wolf": "events.death_wolf_hidden",
+    "events.honeypot_retaliation_lynch": "events.honeypot_retaliation_hidden",
+    "events.honeypot_retaliation_serial": "events.honeypot_retaliation_hidden",
+    "events.honeypot_retaliation_witch": "events.honeypot_retaliation_hidden",
+    "events.honeypot_retaliation_wolf": "events.honeypot_retaliation_hidden",
+    "events.lovers_pact": "events.death_love_hidden",
+    "events.lynch_result": "events.lynch_success_hidden",
+    "events.lynch_success": "events.lynch_success_hidden",
+    "events.night_kill": "events.death_wolf_hidden",
+    "events.prostitute_collat": "events.prostitute_collat_hidden",
+}
+
+
+def roles_are_revealed_on_death():
+    return game_instance.settings.get("reveal_roles_on_death") is True
+
+
+def get_public_death_message(message):
+    """Return a role-safe copy of a public death message."""
+    if roles_are_revealed_on_death() or not isinstance(message, dict):
+        return message
+
+    public_message = dict(message)
+    variables = dict(public_message.get("variables", {}))
+    contained_role = "role" in variables
+    variables.pop("role", None)
+    public_message["variables"] = variables
+
+    if contained_role:
+        public_message["key"] = HIDDEN_ROLE_MESSAGE_KEYS.get(
+            public_message.get("key"),
+            "events.death_hidden",
+        )
+
+    return public_message
+
+
+def get_public_death_event(event):
+    """Remove private role data from a death event before broadcasting it."""
+    public_event = dict(event)
+    if roles_are_revealed_on_death():
+        return public_event
+
+    public_event.pop("role", None)
+    if isinstance(public_event.get("reason"), dict):
+        public_event["reason"] = get_public_death_message(public_event["reason"])
+    return public_event
+
+
 def log_and_emit(message, log_text=None):
     print(log_text if log_text is not None else message)
     socketio.emit("log_message", {"text": message}, to=game["game_code"])
@@ -1017,14 +1094,37 @@ def handle_admin_next_phase(data=None):
     elif current_phase == PHASE_LYNCH:
         resolve_lynch()
 
+
+@socketio.on("admin_cancel_game")
+def handle_admin_cancel_game():
+    _, player = get_player_by_sid(request.sid)
+    if (
+        not player
+        or not player.is_admin
+        or request.sid != game.get("admin_sid")
+    ):
+        return
+
+    # Cancellation is deliberately separate from lobby setup and rematch flow.
+    if game.get("game_state") != "started":
+        return
+
+    print(f"===> Admin {player.name} cancelled the active game.")
+    room = game["game_code"]
+    reset_active_game_to_lobby()
+    socketio.emit("redirect_to_lobby", {}, to=room)
+    broadcast_player_list()
+
+
 def resolve_lynch():
     result = game_instance.resolve_lynch_vote()
 
     # 1. Handle Announcements (if any)
     if result.get("announcements"):
         for ann in result["announcements"]:
-            game_instance.message_history.append(ann)
-            socketio.emit("message", {"text": ann}, to=game["game_code"])
+            public_ann = get_public_death_message(ann)
+            game_instance.message_history.append(public_ann)
+            socketio.emit("message", {"text": public_ann}, to=game["game_code"])
 
     # 2. Determine Primary Lynch Result
     msg = {"key": "events.lynch_fail", "variables": {}}
@@ -1037,6 +1137,8 @@ def resolve_lynch():
             "key": "events.lynch_success",
             "variables": {"name": name, "role": role}
         }
+
+    msg = get_public_death_message(msg)
 
     # Attach summary (Voted Yes/No) to the message object
     if result.get("summary"):
@@ -1095,6 +1197,7 @@ def resolve_lynch():
                     "variables": {"name": d["name"], "reason": str(reason_raw)}
                 }
 
+            sec_msg = get_public_death_message(sec_msg)
             game_instance.message_history.append(sec_msg)
             socketio.emit("message", {"text": sec_msg}, to=game["game_code"])
 
@@ -1418,7 +1521,7 @@ def resolve_night():
                         to=player_wrapper.sid,
                     )
             elif event_type == "announcement":
-                msg = event["message"]
+                msg = get_public_death_message(event["message"])
                 game_instance.message_history.append(msg)
                 socketio.emit(
                     "message",
@@ -1455,12 +1558,14 @@ def resolve_night():
                     hist_msg["variables"]["reason"] = reason.replace(
                         "Honeypot retaliation: ", ""
                     )
+                hist_msg = get_public_death_message(hist_msg)
                 game_instance.message_history.append(hist_msg)
 
+                public_event = get_public_death_event(event)
                 socketio.emit(
                     "night_result_kill",
                     {
-                        "killed_player": event,
+                        "killed_player": public_event,
                         "admin_only_chat": game_instance.admin_only_chat,
                         "phase": game_instance.phase,
                         "message": hist_msg,
