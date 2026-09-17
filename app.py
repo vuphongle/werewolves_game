@@ -620,17 +620,18 @@ def background_game_loop():
 
 
 def perform_tally_accusations():
-    token = game_instance.begin_phase_resolution(PHASE_ACCUSATION)
+    resolving_game = game_instance
+    token = resolving_game.begin_phase_resolution(PHASE_ACCUSATION)
     if token is None:
         return
     try:
-        return _perform_tally_accusations()
+        return _perform_tally_accusations(resolving_game)
     finally:
-        game_instance.finish_phase_resolution(token)
+        resolving_game.finish_phase_resolution(token)
 
 
-def _perform_tally_accusations():
-    outcome = game_instance.tally_accusations()
+def _perform_tally_accusations(resolving_game):
+    outcome = resolving_game.tally_accusations()
     result_type = outcome["result"]
     if result_type == "trial":
         if outcome.get("message"):
@@ -641,33 +642,37 @@ def _perform_tally_accusations():
             "key": "events.trial_started",
             "variables": {"target": outcome["target_name"]},
         }
-        game_instance.message_history.append(trial_msg)
+        resolving_game.message_history.append(trial_msg)
 
         socketio.emit(
             "lynch_vote_started",
             {
                 "target_id": outcome["target_id"],
                 "target_name": outcome["target_name"],
-                "phase_end_time": game_instance.phase_end_time,
+                "phase_end_time": resolving_game.phase_end_time,
             },
             to=game["game_code"],
         )
     elif result_type == "restart":
-        game_instance.message_history.append(outcome["message"])
+        resolving_game.message_history.append(outcome["message"])
         socketio.emit(
             "lynch_vote_result", {"message": outcome["message"]}, to=game["game_code"]
         )
         socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
-        game_instance.set_phase(PHASE_ACCUSATION)
+        if resolving_game is not game_instance:
+            return
+        resolving_game.set_phase(PHASE_ACCUSATION)
         broadcast_game_state()
 
     elif result_type == "night":
-        game_instance.message_history.append(outcome["message"])
+        resolving_game.message_history.append(outcome["message"])
         # No Accusations / Deadlock -> Sleep
         socketio.emit(
             "lynch_vote_result", {"message": outcome["message"]}, to=game["game_code"]
         )
         socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
+        if resolving_game is not game_instance:
+            return
         broadcast_game_state()
 
 
@@ -1294,22 +1299,23 @@ def handle_admin_next_phase(data=None):
         resolve_lynch()
 
 def resolve_lynch():
-    token = game_instance.begin_phase_resolution(PHASE_LYNCH)
+    resolving_game = game_instance
+    token = resolving_game.begin_phase_resolution(PHASE_LYNCH)
     if token is None:
         return
     try:
-        return _resolve_lynch()
+        return _resolve_lynch(resolving_game)
     finally:
-        game_instance.finish_phase_resolution(token)
+        resolving_game.finish_phase_resolution(token)
 
 
-def _resolve_lynch():
-    result = game_instance.resolve_lynch_vote()
+def _resolve_lynch(resolving_game):
+    result = resolving_game.resolve_lynch_vote()
 
     # 1. Handle Announcements (if any)
     if result.get("announcements"):
         for ann in result["announcements"]:
-            game_instance.message_history.append(ann)
+            resolving_game.message_history.append(ann)
             socketio.emit("message", {"text": ann}, to=game["game_code"])
 
     # 2. Determine Primary Lynch Result
@@ -1317,8 +1323,8 @@ def _resolve_lynch():
     if result.get("armor_save"):
         msg = {"key": "events.lynch_armor", "variables": {}}
     elif result["killed_id"]:
-        name = game_instance.players[result["killed_id"]].name
-        role = game_instance.players[result["killed_id"]].role.name_key
+        name = resolving_game.players[result["killed_id"]].name
+        role = resolving_game.players[result["killed_id"]].role.name_key
         msg = {
             "key": "events.lynch_success",
             "variables": {"name": name, "role": role}
@@ -1328,7 +1334,7 @@ def _resolve_lynch():
     if result.get("summary"):
         msg["summary"] = result["summary"]
 
-    game_instance.message_history.append(msg)
+    resolving_game.message_history.append(msg)
 
     socketio.emit(
         "lynch_vote_result",
@@ -1345,8 +1351,8 @@ def _resolve_lynch():
         for d in result["secondary_deaths"]:
             # Attempt to find the role for the translation key (game engine might not send it in 'd')
             role_key = "Unknown"
-            if "id" in d and d["id"] in game_instance.players:
-                r = game_instance.players[d["id"]].role
+            if "id" in d and d["id"] in resolving_game.players:
+                r = resolving_game.players[d["id"]].role
                 if r: role_key = r.name_key
             elif "role" in d:
                 role_key = d["role"]
@@ -1381,22 +1387,26 @@ def _resolve_lynch():
                     "variables": {"name": d["name"], "reason": str(reason_raw)}
                 }
 
-            game_instance.message_history.append(sec_msg)
+            resolving_game.message_history.append(sec_msg)
             socketio.emit("message", {"text": sec_msg}, to=game["game_code"])
 
     # 4. Update Wolf Team & Check Game Over
-    living_wolves = game_instance.get_living_players("Werewolves")
+    living_wolves = resolving_game.get_living_players("Werewolves")
     for werewolf in living_wolves:
         send_werewolf_info(werewolf.id)
 
     socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
-    check_game_over_or_next_phase()
+    check_game_over_or_next_phase(resolving_game)
 
-def check_game_over_or_next_phase():
-    if game_instance.check_game_over():
-        game_instance.phase = PHASE_GAME_OVER
+
+def check_game_over_or_next_phase(resolving_game):
+    if resolving_game is not game_instance:
+        return
+
+    if resolving_game.check_game_over():
+        resolving_game.phase = PHASE_GAME_OVER
         game["game_state"] = PHASE_GAME_OVER
-        data = game_instance.game_over_data
+        data = resolving_game.game_over_data
         if data:
             game["game_over_data"] = data
             winner = data.get("winning_team", "Unknown")
@@ -1405,7 +1415,7 @@ def check_game_over_or_next_phase():
                 f"Game Over! The {winner} have won.",
             )
     else:
-        game_instance.advance_phase()
+        resolving_game.advance_phase()
     broadcast_game_state()
 
 
@@ -1704,20 +1714,21 @@ def handle_cast_lynch_vote(data):
 
 
 def resolve_night():
-    token = game_instance.begin_phase_resolution(PHASE_NIGHT)
+    resolving_game = game_instance
+    token = resolving_game.begin_phase_resolution(PHASE_NIGHT)
     if token is None:
         return
     try:
-        return _resolve_night()
+        return _resolve_night(resolving_game)
     finally:
-        game_instance.finish_phase_resolution(token)
+        resolving_game.finish_phase_resolution(token)
 
 
-def _resolve_night():
-    events = game_instance.resolve_night_deaths()
+def _resolve_night(resolving_game):
+    events = resolving_game.resolve_night_deaths()
 
     # Notify Lovers
-    for player_id in game_instance.players:
+    for player_id in resolving_game.players:
         send_cupid_info(player_id)
 
     # since deaths may also contain "armor_save"
@@ -1728,7 +1739,7 @@ def _resolve_night():
 
             if event_type == "armor_save":
                 msg = {"key": "events.strangely", "variables": {}}
-                game_instance.message_history.append(msg)
+                resolving_game.message_history.append(msg)
                 socketio.emit("message", {"text": msg}, to=game["game_code"])
 
             elif event_type == "blocked":
@@ -1741,7 +1752,7 @@ def _resolve_night():
                     )
             elif event_type == "announcement":
                 msg = event["message"]
-                game_instance.message_history.append(msg)
+                resolving_game.message_history.append(msg)
                 socketio.emit(
                     "message",
                     {"text": msg},
@@ -1777,30 +1788,30 @@ def _resolve_night():
                     hist_msg["variables"]["reason"] = reason.replace(
                         "Honeypot retaliation: ", ""
                     )
-                game_instance.message_history.append(hist_msg)
+                resolving_game.message_history.append(hist_msg)
 
                 socketio.emit(
                     "night_result_kill",
                     {
                         "killed_player": event,
-                        "admin_only_chat": game_instance.admin_only_chat,
-                        "phase": game_instance.phase,
+                        "admin_only_chat": resolving_game.admin_only_chat,
+                        "phase": resolving_game.phase,
                         "message": hist_msg,
                     },
                     to=game["game_code"],
                 )
                 # msg werewolf teamates in case Wild_Child joined
-                living_wolves = game_instance.get_living_players("Werewolves")
+                living_wolves = resolving_game.get_living_players("Werewolves")
                 for werewolf in living_wolves:
                     send_werewolf_info(werewolf.id)
 
     if not actual_death:
         msg = {"key": "events.sun_rise_safe", "variables": {}}
-        game_instance.message_history.append(msg)
+        resolving_game.message_history.append(msg)
         socketio.emit("message", {"text": msg}, to=game["game_code"])
 
     socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
-    check_game_over_or_next_phase()
+    check_game_over_or_next_phase(resolving_game)
 
 
 @socketio.on("vote_to_end_day")

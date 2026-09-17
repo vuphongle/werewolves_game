@@ -1,13 +1,25 @@
 import unittest
+from threading import Event, Thread
+from unittest.mock import patch
 
 import app as app_module
-from game_engine import Game, PHASE_LOBBY, PHASE_NIGHT
+from game_engine import (
+    Game,
+    PHASE_ACCUSATION,
+    PHASE_LOBBY,
+    PHASE_LYNCH,
+    PHASE_NIGHT,
+)
 from roles import Villager
 
 
 class LeaveRoomTests(unittest.TestCase):
     def setUp(self):
         app_module.app.config.update(TESTING=True, SECRET_KEY="test-secret")
+        self.socket_clients = []
+        self.reset_app_state()
+
+    def reset_app_state(self):
         app_module.game = {
             "admin_sid": None,
             "game_code": "W",
@@ -23,7 +35,6 @@ class LeaveRoomTests(unittest.TestCase):
         app_module.join_attempts = {}
         app_module.last_message_time = {}
         app_module.game_loop_running = False
-        self.socket_clients = []
 
     def tearDown(self):
         for client in self.socket_clients:
@@ -212,6 +223,90 @@ class LeaveRoomTests(unittest.TestCase):
         self.assertEqual(PHASE_LOBBY, app_module.game_instance.phase)
         self.assertEqual(settings, app_module.game_instance.settings)
         self.assertEqual({}, app_module.game_instance.players)
+
+    def test_stale_resolvers_cannot_mutate_replacement_after_last_member_leave(self):
+        cases = (
+            (PHASE_NIGHT, "resolve_night", "resolve_night_deaths", []),
+            (
+                PHASE_ACCUSATION,
+                "perform_tally_accusations",
+                "tally_accusations",
+                {
+                    "result": "restart",
+                    "message": {"key": "events.tie_restart", "variables": {}},
+                },
+            ),
+            (
+                PHASE_LYNCH,
+                "resolve_lynch",
+                "resolve_lynch_vote",
+                {
+                    "summary": {"yes": [], "no": []},
+                    "killed_id": None,
+                    "armor_save": False,
+                    "announcements": [],
+                    "secondary_deaths": [],
+                },
+            ),
+        )
+
+        for phase, resolver_name, engine_method_name, engine_result in cases:
+            with self.subTest(phase=phase):
+                self.reset_app_state()
+                client, _ = self.connect_player("only", "Only")
+                self.configure_active_game(["only"])
+                app_module.game_instance.phase = phase
+                app_module.set_current_admin("only")
+                app_module.game_loop_running = True
+                old_engine = app_module.game_instance
+                entered_pause = Event()
+                release_resolver = Event()
+                errors = []
+
+                def block_resolver(_seconds):
+                    entered_pause.set()
+                    release_resolver.wait(2)
+
+                def run_resolver():
+                    try:
+                        getattr(app_module, resolver_name)()
+                    except Exception as exc:  # pragma: no cover - asserted below
+                        errors.append(exc)
+
+                with (
+                    patch.object(
+                        old_engine,
+                        engine_method_name,
+                        return_value=engine_result,
+                    ),
+                    patch.object(app_module.socketio, "emit"),
+                    patch.object(
+                        app_module.socketio,
+                        "sleep",
+                        side_effect=block_resolver,
+                    ),
+                    patch.object(app_module, "broadcast_game_state") as broadcast,
+                ):
+                    resolver = Thread(target=run_resolver)
+                    resolver.start()
+                    self.assertTrue(entered_pause.wait(1))
+
+                    response = client.post("/leave-room", json={})
+                    replacement_engine = app_module.game_instance
+
+                    release_resolver.set()
+                    resolver.join(2)
+
+                self.assertEqual(200, response.status_code)
+                self.assertEqual([], errors)
+                self.assertFalse(resolver.is_alive())
+                self.assertIsNot(old_engine, replacement_engine)
+                self.assertIs(replacement_engine, app_module.game_instance)
+                self.assertEqual(PHASE_LOBBY, app_module.game["game_state"])
+                self.assertEqual(PHASE_LOBBY, replacement_engine.phase)
+                self.assertIsNone(replacement_engine.winner)
+                self.assertIsNone(replacement_engine.game_over_data)
+                broadcast.assert_not_called()
 
     def test_non_json_request_cannot_leave_payload_selected_player(self):
         attacker_client, _ = self.connect_player("attacker", "Attacker")
