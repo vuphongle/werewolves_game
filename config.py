@@ -3,11 +3,15 @@ config.py
 Version: 5.2.6.2
 Central location for all game defaults and timer settings.
 """
+import os
+
+
+admin_code = os.environ.get("GAME_ADMIN_CODE", "").strip().upper() or None
 
 GAME_DEFAULTS = {
     # Time (in seconds)
     "DEFAULT_CODE": "W",
-    "DEFAULT_ADMIN_CODE": "BLM",
+    "DEFAULT_ADMIN_CODE": admin_code,
     "DEFAULT_LANGUAGE": "vi",
     "DEFAULT_ROLES": ["Villager", "Werewolf", "Seer"],
     "ENABLE_PASS_AND_PLAY": False,

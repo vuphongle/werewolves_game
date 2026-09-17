@@ -44,9 +44,9 @@ lugar, O en persona usando uno o varios dispositivos en modo **Pasar-y-Jugar**.
 - **🏆 Victoria Solitario:** Roles neutrales como el **Monstruo**, **Loco** o
   **Cuidadano Demente** pueden ganar solos, ignorando las lealtades del equipo.
 
-- **Controles de Admin Robustos:** El primer jugador en unirse a la sala O
-  jugador que use el DEFAULT_ADMIN_CODE se convierte en el administrador y tiene
-  la capacidad de:
+- **Controles de Admin Robustos:** El primer jugador en unirse a la sala O un
+  jugador que use el `GAME_ADMIN_CODE` opcional se convierte en administrador y
+  tiene la capacidad de:
   - Excluir jugadores de la sala.
   - Iniciar el juego una vez que se hayan unido suficientes jugadores (mínimo
     4).
@@ -182,7 +182,9 @@ Para ejecutar este proyecto localmente, sigue estos pasos:
     algo*largo_y_raro, \_CORS_ALLOWED_ORIGINS* a la dirección web deseada del
     juego como:
     http://127.0.0.1:5000,http://tu.ip.aqui:5000,https://tu.sitio.aqui:5000 O
-    deja en blanco para deshabilitar CORS y usar cualquier sitio.
+    déjalo en blanco para usar el mismo origen, o establece `*` explícitamente
+    para permitir cualquier origen. Configura `GAME_ADMIN_CODE` solo si quieres
+    un código opcional de administrador.
 
 3.  **O BIEN** ejecutar vía Dockerfile (pasos 3A y 5) **O** a través de
     docker-compose (pasos 3B y 5) **O** instalar y ejecutar localmente (pasos
@@ -262,15 +264,15 @@ Para ejecutar este proyecto localmente, sigue estos pasos:
     del juego establecida en `.env.werewolves CORS_ALLOWED_ORIGINS`.
     Normalmente: `http://127.0.0.1:5000`. Abre múltiples pestañas o navegadores
     para simular diferentes jugadores uniéndose al juego. El Código de Juego
-    Inicial es `W` y el primer jugador en unirse es el **Admin** o user Código
-    Inicial del Admin `BLM`.
+    Inicial es `W` y el primer jugador en unirse es el **Admin**. Se puede
+    configurar un código opcional de administrador con `GAME_ADMIN_CODE`.
 
 ### Configuración de Juego (config.py)
 
 - DEFAULT_CODE: Establece el código inicial, normalmente `W`, no distingue entre
   mayúsculas y minúsculas.
-- DEFAULT_ADMIN_CODE: Inicial game_admin_code, normalmente `BLM`, no distingue
-  entre mayúsculas y minúsculas.
+- GAME_ADMIN_CODE: Código opcional de administrador; si no está configurado o
+  está vacío, se desactiva la elevación por código.
 - DEFAULT_LANGUAGE: Configurar como "es" o "de" para cambiar el idioma en que
   empieza el servidor.
 - TIME_NIGHT / TIME_ACCUSATION: Cambiar las duraciones predeterminadas (en
