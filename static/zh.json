@@ -19,6 +19,9 @@
     "Serial_Killer": "连环杀手"
   },
   "ui": {
+    "common": {
+      "admin_label": "管理员："
+    },
     "login": {
       "error_rate_limit": "尝试次数过多，请稍后再试。",
       "error_name_required": "请输入名字（无特殊字符）。",
@@ -66,6 +69,7 @@
       "set_timers_btn": "设置计时器",
       "solo_win_desc": "不等团队获胜。",
       "solo_win_mode": "单人胜利结束游戏",
+      "standard_mode": "标准模式",
       "start_game_btn": "开始游戏",
       "timer_accusation": "指控（秒）：",
       "timer_lynch": "处决投票（秒）：",
@@ -74,9 +78,19 @@
       "title": "大厅 - 等待玩家中",
       "toggle_chat_btn": "切换管理员聊天",
       "waiting_text": "等待玩家加入...",
-      "you_suffix": "（你）"
+      "you_suffix": "（你）",
+      "make_admin_title": "设为管理员",
+      "confirm_make_admin": "将 {name} 设为管理员？",
+      "alert_dropped": "你已被移出游戏。",
+      "alert_code_set": "游戏码已更新。",
+      "roles_not_loaded": "角色尚未加载完成。",
+      "random_roles_failed": "无法随机选择角色。",
+      "random_roles_error": "随机选择角色时发生错误。",
+      "enter_new_code": "输入新的游戏码：",
+      "confirm_exclude": "将 {name} 移出大厅？"
     },
     "game": {
+      "page_title": "狼人杀 - 游戏",
       "accusation_prompt": "谁是狼人？讨论时间到！",
       "action_submitted": "行动已提交。",
       "alert_error": "错误：{msg}",
@@ -127,7 +141,11 @@
       "win_villagers": "村民获胜！",
       "win_werewolves": "狼人获胜！",
       "you_accused": "你指控了 <span style='color:#ff5252'>{name}</span>。",
-      "your_role_label": "你的身份："
+      "your_role_label": "你的身份：",
+      "transfer_admin_title": "转移管理员权限",
+      "confirm_transfer_admin": "将管理员权限从 {from_name} 转移给 {to_name}？",
+      "ghost_name": "幽灵",
+      "unknown_message": "未知消息"
     },
     "pnp": {
       "btn_cancel": "取消",
@@ -147,6 +165,16 @@
       "identity_ask": "你是 <strong>{name}</strong> 吗？",
       "identity_title": "身份确认",
       "pass_device": "请传递设备..."
+    },
+    "errors": {
+      "game_in_progress": "游戏已经开始。",
+      "message_too_long": "你的消息太长了。",
+      "admin_start_only": "只有管理员可以开始游戏。",
+      "minimum_players": "至少需要 {min_players} 名玩家。",
+      "new_code_empty": "新游戏码不能为空。",
+      "new_code_alnum": "新游戏码只能包含字母和数字。",
+      "new_code_length": "新游戏码太长。",
+      "action_ignored": "此操作已被忽略。"
     }
   },
   "actions": {
@@ -202,10 +230,32 @@
     "win_villagers": "所有狼人都已被消灭。",
     "win_werewolves": "狼人占领了村庄。",
     "wolf_lone": "你是唯一的狼人 🐺",
-    "wolf_team": "你是狼人 🐺 你的狼队友是：<strong>{mates}</strong>。"
+    "wolf_team": "你是狼人 🐺 你的狼队友是：<strong>{mates}</strong>。",
+    "timer_expired": "{phase} 阶段计时已结束。",
+    "player_joined_admin": "{name} 加入了大厅。",
+    "player_joined": "{name} 加入了游戏。",
+    "player_reconnected": "{name} 已重新连接。",
+    "admin_reconnected": "管理员已重新连接。",
+    "player_disconnected": "{name} 已断开连接。",
+    "admin_transferred": "管理员权限已从 {from_name} 转移给 {to_name}。",
+    "timers_paused": "计时器已暂停。",
+    "timers_resumed": "计时器已继续。",
+    "timers_updated": "计时器已更新：夜晚 {night} 秒，指认 {accusation} 秒，处决投票 {lynch} 秒。",
+    "game_started": "游戏已开始。",
+    "game_started_mode": "游戏已以 {mode} 模式开始。",
+    "admin_advanced_phase": "管理员已将游戏推进到 {phase} 阶段。",
+    "game_over_winner": "游戏结束。获胜者：{winner}。",
+    "mayor_successor_selected": "{name} 被选为下一任村长。",
+    "mayor_successor_promoted": "村长已死！新村长 <strong>{name}</strong> 万岁！",
+    "honeypot_retaliation_generic": "🍯 诱饵临死前带走了另一名玩家！",
+    "honeypot_retaliation_lynch": "🍯 <strong>{name}</strong> 从赞成处决的人中被选中，与诱饵一同倒下。其角色是 <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_wolf": "🍯 诱饵的陷阱带走了狼群中的 <strong>{name}</strong>。其角色是 <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_witch": "🍯 诱饵的陷阱带走了 <strong>{name}</strong>。其角色是 <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_serial": "🍯 诱饵的陷阱带走了 <strong>{name}</strong>。其角色是 <strong>{role}</strong> ⚰️"
   },
   "roles": {
     "Magic_User": { "name": "魔法使用者" },
+    "Non_Magic_User": { "name": "非魔法使用者" },
     "Villager": {
       "name": "村民",
       "short": "找出狼人并将他们投票出局。",

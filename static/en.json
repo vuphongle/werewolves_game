@@ -19,6 +19,9 @@
     "Serial_Killer": "Serial Killer"
   },
   "ui": {
+    "common": {
+      "admin_label": "ADMIN:"
+    },
     "login": {
       "error_rate_limit": "Too many attempts. Please wait.",
       "error_name_required": "Name is required (no special chars).",
@@ -66,6 +69,7 @@
       "set_timers_btn": "Set Timers",
       "solo_win_desc": "Don't wait for team wins.",
       "solo_win_mode": "Solo win ends game",
+      "standard_mode": "Standard mode",
       "start_game_btn": "Start Game",
       "timer_accusation": "Accusation (sec):",
       "timer_lynch": "Lynch Vote (sec):",
@@ -74,9 +78,19 @@
       "title": "Lobby - Waiting for Players",
       "toggle_chat_btn": "Toggle Admin Chat",
       "waiting_text": "Waiting for players...",
-      "you_suffix": "(You)"
+      "you_suffix": "(You)",
+      "make_admin_title": "Make Admin",
+      "confirm_make_admin": "Make {name} the admin?",
+      "alert_dropped": "You were removed from the game.",
+      "alert_code_set": "The game code was updated.",
+      "roles_not_loaded": "Roles are not loaded yet.",
+      "random_roles_failed": "Could not select random roles.",
+      "random_roles_error": "An error occurred while selecting random roles.",
+      "enter_new_code": "Enter a new game code:",
+      "confirm_exclude": "Exclude {name} from the lobby?"
     },
     "game": {
+      "page_title": "Werewolves - Game",
       "accusation_prompt": "Who is the Werewolf? Time for discussion!",
       "action_submitted": "Action Submitted.",
       "alert_error": "Error: {msg}",
@@ -127,7 +141,11 @@
       "win_villagers": "The Villagers Win!",
       "win_werewolves": "The Werewolves Win!",
       "you_accused": "You have accused <span style='color:#ff5252'>{name}</span>.",
-      "your_role_label": "Your Role:"
+      "your_role_label": "Your Role:",
+      "transfer_admin_title": "Transfer Admin",
+      "confirm_transfer_admin": "Transfer admin control from {from_name} to {to_name}?",
+      "ghost_name": "Ghost",
+      "unknown_message": "Unknown message"
     },
     "pnp": {
       "btn_cancel": "Cancel",
@@ -147,6 +165,16 @@
       "identity_ask": "Are you <strong>{name}</strong>?",
       "identity_title": "Identity Check",
       "pass_device": "Please pass the device..."
+    },
+    "errors": {
+      "game_in_progress": "The game is already in progress.",
+      "message_too_long": "Your message is too long.",
+      "admin_start_only": "Only the admin can start the game.",
+      "minimum_players": "At least {min_players} players are required.",
+      "new_code_empty": "The new game code cannot be empty.",
+      "new_code_alnum": "The new game code must be alphanumeric.",
+      "new_code_length": "The new game code is too long.",
+      "action_ignored": "This action was ignored."
     }
   },
   "actions": {
@@ -202,10 +230,32 @@
     "win_villagers": "All of the Werewolves have been eradicated.",
     "win_werewolves": "The Werewolves have taken over the village.",
     "wolf_lone": "You are the lone Werewolf 🐺",
-    "wolf_team": "You are a Werewolf 🐺 Your fellow Werewolves are: <strong>{mates}</strong>."
+    "wolf_team": "You are a Werewolf 🐺 Your fellow Werewolves are: <strong>{mates}</strong>.",
+    "timer_expired": "The timer for {phase} has expired.",
+    "player_joined_admin": "{name} joined the lobby.",
+    "player_joined": "{name} joined the game.",
+    "player_reconnected": "{name} reconnected.",
+    "admin_reconnected": "The admin reconnected.",
+    "player_disconnected": "{name} disconnected.",
+    "admin_transferred": "Admin control was transferred from {from_name} to {to_name}.",
+    "timers_paused": "Timers paused.",
+    "timers_resumed": "Timers resumed.",
+    "timers_updated": "Timers updated: night {night}s, accusation {accusation}s, lynch vote {lynch}s.",
+    "game_started": "The game has started.",
+    "game_started_mode": "The game has started in {mode} mode.",
+    "admin_advanced_phase": "The admin advanced the game to {phase}.",
+    "game_over_winner": "Game over. Winner: {winner}.",
+    "mayor_successor_selected": "{name} was selected as Mayor-Elect.",
+    "mayor_successor_promoted": "The Mayor is dead. Long live Mayor <strong>{name}</strong>!",
+    "honeypot_retaliation_generic": "🍯 The Honeypot took another player down with them!",
+    "honeypot_retaliation_lynch": "🍯 <strong>{name}</strong> was chosen from the lynch mob and fell with the Honeypot. They were a <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_wolf": "🍯 The Honeypot's trap took down <strong>{name}</strong> from the Werewolf pack. They were a <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_witch": "🍯 The Honeypot's trap took down <strong>{name}</strong>. They were a <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_serial": "🍯 The Honeypot's trap took down <strong>{name}</strong>. They were a <strong>{role}</strong> ⚰️"
   },
   "roles": {
     "Magic_User": { "name": "Magic User" },
+    "Non_Magic_User": { "name": "Non-Magic User" },
     "Villager": {
       "name": "Villager",
       "short": "Find the Werewolves and vote them out.",

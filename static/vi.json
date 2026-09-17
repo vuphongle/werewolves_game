@@ -1,0 +1,509 @@
+{
+  "_comment": "version 5.2.6.1; update language in index.html",
+  "prompts": {
+    "villager_0": "Ai sẽ chết đầu tiên nếu đại dịch zombie xảy ra?",
+    "villager_1": "Lúc này ai trông đáng ngờ nhất?",
+    "villager_2": "Ai có tật liếm ngón tay?",
+    "villager_3": "Dim didi dum :)",
+    "villager_4": "Ai có khả năng đi làm sớm nhất?",
+    "villager_5": "Ai có nụ cười dễ thương nhất?",
+    "villager_6": "Ai có khả năng trở thành người nổi tiếng trên mạng nhất?",
+    "villager_7": "Ai uống rượu bia kém nhất?",
+    "villager_8": "Ai từng qua lại với nhiều người nhất?"
+  },
+  "teams": {
+    "Villagers": "Dân làng",
+    "Werewolves": "Ma Sói",
+    "Neutral": "Trung lập",
+    "Monster": "Quái vật",
+    "Serial_Killer": "Sát nhân"
+  },
+  "ui": {
+    "common": {
+      "admin_label": "QUẢN TRÒ:"
+    },
+    "login": {
+      "error_rate_limit": "Bạn đã thử quá nhiều lần. Vui lòng chờ.",
+      "error_name_required": "Vui lòng nhập tên (không dùng ký tự đặc biệt).",
+      "error_name_length": "Tên không được dài quá 20 ký tự.",
+      "error_code_required": "Vui lòng nhập mã phòng.",
+      "error_code_alnum": "Mã phòng chỉ được chứa chữ cái và chữ số.",
+      "error_code_length": "Mã phòng quá dài.",
+      "error_code_invalid": "Mã phòng không hợp lệ.",
+      "error_lobby_full": "Phòng chờ đã đầy.",
+      "error_name_taken": "Tên này đã có người sử dụng.",
+      "error_too_late": "Ván chơi đã bắt đầu."
+    },
+    "lobby": {
+      "add_player_btn": "Thêm người chơi",
+      "admin_header": "Bảng điều khiển quản trò",
+      "chat_header": "Trò chuyện trong phòng chờ",
+      "chat_placeholder": "Nhập tin nhắn...",
+      "chat_restricted": "Chỉ quản trò được trò chuyện",
+      "disable_timers": "Tắt đồng hồ đếm giờ",
+      "exclude_btn": "Loại khỏi phòng",
+      "game_code": "Mã phòng:",
+      "game_mode_header": "Chế độ chơi",
+      "ghost_desc": "Người đã chết đôi khi vẫn được bỏ phiếu.",
+      "ghost_mode": "Bật chế độ hồn ma",
+      "min_players_warning": "Cần ít nhất 4 người chơi để bắt đầu.",
+      "new_code_placeholder": "Mã phòng mới",
+      "pg_mode": "Chế độ PG",
+      "pg_desc": "Câu hỏi ban ngày phù hợp với mọi lứa tuổi.",
+      "players_header": "Người chơi:",
+      "pnp_desc": "Chế độ dùng chung một thiết bị. Ván chơi sẽ tạm dừng giữa các lượt.",
+      "pnp_mode": "Chế độ chuyền thiết bị",
+      "random_roles_btn": "🎲 Chọn vai ngẫu nhiên",
+      "rating_guide": "💡 Hướng dẫn tính điểm",
+      "rating_neg": "- Điểm âm: Nghiêng về phe Ma Sói",
+      "rating_neu": "~ Điểm 0: Trung lập / Chưa xác định",
+      "rating_note": "Nút \"Ngẫu nhiên\" sẽ chọn một bộ vai cân bằng với tổng điểm gần 0. Hành động ban đêm được xử lý theo thứ tự tăng dần, nên vai có thứ tự 1 hành động trước vai có thứ tự 2.",
+      "rating_pos": "+ Điểm dương: Nghiêng về phe Dân làng",
+      "rating_title": "Điểm cân bằng vai:",
+      "role_count_label": "SỐ LƯỢNG VAI:",
+      "roles_header": "Vai",
+      "roles_warning": "⚠️ Đã chọn quá nhiều vai! Hãy bỏ chọn {count} vai.",
+      "send_btn": "Gửi",
+      "set_code_btn": "Đặt mã",
+      "set_code_label": "Đặt mã phòng mới:",
+      "set_timers_btn": "Đặt thời gian",
+      "solo_win_desc": "Không cần chờ phe của mình thắng.",
+      "solo_win_mode": "Thắng cá nhân sẽ kết thúc ván",
+      "standard_mode": "Chế độ tiêu chuẩn",
+      "start_game_btn": "Bắt đầu ván chơi",
+      "timer_accusation": "Chỉ điểm (giây):",
+      "timer_lynch": "Bỏ phiếu xử (giây):",
+      "timer_night": "Pha ban đêm (giây):",
+      "timers_header": "Cài đặt thời gian (+30 giây)",
+      "title": "Phòng chờ - Đang chờ người chơi",
+      "toggle_chat_btn": "Bật/tắt trò chuyện của quản trò",
+      "waiting_text": "Đang chờ người chơi...",
+      "you_suffix": "(Bạn)",
+      "make_admin_title": "Đặt làm quản trò",
+      "confirm_make_admin": "Đặt {name} làm quản trò?",
+      "alert_dropped": "Bạn đã bị loại khỏi ván chơi.",
+      "alert_code_set": "Mã phòng đã được cập nhật.",
+      "roles_not_loaded": "Danh sách vai chưa được tải xong.",
+      "random_roles_failed": "Không thể chọn vai ngẫu nhiên.",
+      "random_roles_error": "Đã xảy ra lỗi khi chọn vai ngẫu nhiên.",
+      "enter_new_code": "Nhập mã phòng mới:",
+      "confirm_exclude": "Loại {name} khỏi phòng chờ?"
+    },
+    "game": {
+      "page_title": "Ma Sói - Ván chơi",
+      "accusation_prompt": "Ai là Ma Sói? Đến lúc thảo luận rồi!",
+      "action_submitted": "Đã ghi nhận hành động.",
+      "alert_error": "Lỗi: {msg}",
+      "alert_relogin": "Đã đặt mã phòng mới.\nBạn sẽ được đưa về màn hình đăng nhập.",
+      "cannot_select_same": "Không thể chọn cùng một người hai lần!",
+      "chat_night_placeholder": "giờ đi ngủ, giữ yên lặng nhé...💤",
+      "chat_restricted_placeholder": "Trò chuyện đang bị hạn chế.",
+      "chat_whisper_placeholder": "Thì thầm...",
+      "dead_message": "<h3>Bạn đã chết 💀 Bạn chỉ có thể im lặng theo dõi ván chơi.</h3>",
+      "done_back_btn": "Xong / Quay lại",
+      "final_role_item": "<strong>{name}</strong>{badges} là {role}",
+      "final_roles": "Vai của mọi người:",
+      "force_phase_btn": "Buộc chuyển sang pha tiếp theo",
+      "game_history": "Lịch sử ván chơi",
+      "game_loading": "Đang ngủ...",
+      "game_log_title": "Nhật ký ván chơi",
+      "game_over_title": "Ván chơi kết thúc",
+      "ghost_active": "👻 Chế độ hồn ma đang bật: ...",
+      "ghost_chat_title": "Trò chuyện của hồn ma 👻",
+      "ghost_fail": "👻 Tiếng than khóc của bạn không ai nghe thấy...",
+      "identity_check_title": "Xác nhận danh tính",
+      "living_chat_title": "Trò chuyện của người còn sống",
+      "loading": "Đang tải...",
+      "lynch_prompt": "Bạn có muốn xử <span style='color:#bb86fc'>{name}</span> không?",
+      "next_phase_btn": "Pha tiếp theo",
+      "night_phase_title": "Pha ban đêm 🌙",
+      "nobody": "Không ai",
+      "pause_timers_btn": "Tạm dừng đồng hồ ⏸️",
+      "players_header": "Người chơi",
+      "please_wait": "Vui lòng chờ...",
+      "pnp_instruction": "Chọn tên của bạn để thực hiện hành động.",
+      "post_game_chat": "Trò chuyện sau ván chơi",
+      "ready_for_night": "Sẵn sàng bước vào pha ban đêm?",
+      "rematch_status": "{count} / {total} người chơi đã bỏ phiếu quay lại.",
+      "resume_timers_btn": "Tiếp tục đồng hồ ▶️",
+      "return_lobby_btn": "Bỏ phiếu quay lại phòng chờ",
+      "timer_disabled": "Đồng hồ ♾️",
+      "timer_left": "Thời gian còn lại: ",
+      "time_up": "Hết giờ!",
+      "voted_btn": "Đã bỏ phiếu!",
+      "voted_no": "Bỏ phiếu Không:",
+      "voted_yes": "Bỏ phiếu Có:",
+      "vote_failed": "Bỏ phiếu thất bại.",
+      "votes_needed": "Cần thêm <strong>{count}</strong> phiếu để đi ngủ!",
+      "waiting_others": "Đang chờ những người khác...",
+      "waiting_result": "Đang chờ kết quả...",
+      "win_generic": "Phe {team} thắng!",
+      "win_villagers": "Dân làng thắng!",
+      "win_werewolves": "Ma Sói thắng!",
+      "you_accused": "Bạn đã chỉ điểm <span style='color:#ff5252'>{name}</span>.",
+      "your_role_label": "Vai của bạn:",
+      "transfer_admin_title": "Chuyển quyền quản trò",
+      "confirm_transfer_admin": "Chuyển quyền quản trò từ {from_name} sang {to_name}?",
+      "ghost_name": "Hồn ma",
+      "unknown_message": "Không xác định được thông báo"
+    },
+    "pnp": {
+      "btn_cancel": "Hủy",
+      "btn_no": "Không, quay lại",
+      "btn_ready": "Tôi đã sẵn sàng",
+      "btn_yes": "Đúng, tôi là {name}",
+      "confirm_msg": "Hãy chắc chắn <strong>{name}</strong> đang cầm thiết bị.<br>Đừng để người khác nhìn thấy màn hình.",
+      "confirm_title": "Xác nhận danh tính",
+      "done_msg": "Đã ghi nhận hành động.",
+      "done_title": "Xong",
+      "force_msg": "⚠️ <strong>Cảnh báo:</strong><br>Thao tác này sẽ bỏ qua các lượt còn lại trong pha hiện tại.<br>Bạn có chắc không?",
+      "force_title": "Buộc chuyển sang pha tiếp theo",
+      "force_yes": "Có, chuyển sang pha tiếp theo",
+      "hub_day": "Chỉ điểm 🫵",
+      "hub_night": "Pha ban đêm 🌙",
+      "hub_vote": "Bỏ phiếu xử 🔥",
+      "identity_ask": "Bạn có phải là <strong>{name}</strong> không?",
+      "identity_title": "Xác nhận danh tính",
+      "pass_device": "Vui lòng chuyền thiết bị..."
+    },
+    "errors": {
+      "game_in_progress": "Ván chơi đang diễn ra.",
+      "message_too_long": "Tin nhắn của bạn quá dài.",
+      "admin_start_only": "Chỉ quản trò mới có thể bắt đầu ván chơi.",
+      "minimum_players": "Cần ít nhất {min_players} người chơi.",
+      "new_code_empty": "Mã phòng mới không được để trống.",
+      "new_code_alnum": "Mã phòng mới chỉ được chứa chữ cái và chữ số.",
+      "new_code_length": "Mã phòng mới quá dài.",
+      "action_ignored": "Hành động này đã bị bỏ qua."
+    }
+  },
+  "actions": {
+    "accuse": "Chỉ điểm",
+    "vote_sleep": "💤Bỏ phiếu đi ngủ",
+    "vote_sleep_timer": "💤Bỏ phiếu đi ngủ ({time} giây)",
+    "voted_sleep": "Đã bỏ phiếu đi ngủ 💤",
+    "lynch_yes": "CÓ",
+    "lynch_no": "KHÔNG",
+    "kill": "Giết",
+    "protect": "Bảo vệ",
+    "heal": "Cứu chữa",
+    "poison": "Đầu độc"
+  },
+  "events": {
+    "accusation_made": "🫵 <strong>{accuser}</strong> chỉ điểm <strong>{target}</strong>!",
+    "accusation_none": "Không ai bị chỉ điểm.🌒 Đi ngủ thôi...",
+    "chat_night_shh": "suỵt... cả làng đang ngủ yên, <strong>{name}</strong>",
+    "chat_restricted": "Trò chuyện hiện đang bị hạn chế.",
+    "cupid_info": "💘 Bạn đang yêu <strong>{name}</strong>! Nếu một người chết, cả hai sẽ cùng chết.",
+    "cupid_info_dead": "Bạn đã chết, nhưng bạn nên biết rằng... 💘 Bạn đã yêu <strong>{name}</strong>!",
+    "death_honey": "🍯 <strong>{role} {name}</strong> đã sa vào bẫy! {reason} 🐝",
+    "death_love": "💕 <strong>{name}</strong> đã chết vì tan nát cõi lòng! 😈 Họ là <strong>{role}</strong> ⚰️",
+    "death_retaliation": "⚔️ <strong>{name}</strong> đã động nhầm người! Họ là <strong>{role}</strong> ⚰️",
+    "death_reveal_human": "🤦 <strong>{name}</strong> đã soi nhầm một Dân làng và chết vì xấu hổ! ⚰️",
+    "death_reveal_wolf": "🔦 <strong>{name}</strong> đã bị soi ra là <strong>{role}</strong> và bị treo cổ! ⚰️",
+    "death_secondary": "☠️ <strong>{name}</strong> cũng đã chết! Nguyên nhân: {reason} ⚰️",
+    "death_serial": "🔪 Một thi thể không còn nguyên vẹn đã được tìm thấy! <strong>{name}</strong> là nạn nhân của Sát nhân! 🩸 Họ là <strong>{role}</strong> ⚰️",
+    "death_witch": "⚗️ Một tiếng sủi bọt vang lên... ☠ <strong>{name}</strong> đã tan thành bùn. Họ là <strong>{role}</strong> ⚰️",
+    "death_wolf": "🐾 Những phần còn lại của một thi thể đã được tìm thấy! <strong>{name}</strong> đã bị giết 🫀 Họ là <strong>{role}</strong> ⚰️",
+    "fool_win": "🤡 Kẻ ngốc <strong>{name}</strong> đã lừa tất cả mọi người và bị xử để giành chiến thắng cá nhân! 🥇",
+    "lawyer_save": "⚖️ <strong>{name}</strong> đã bị bỏ phiếu xử, nhưng Luật sư của họ tìm được kẽ hở!",
+    "lovers_pact": "💘 <strong>Giao ước tình yêu:</strong> {name} chết vì tan nát cõi lòng 💔 Họ là {role}.",
+    "lynch_armor": "⚖️ Dân làng đã bỏ phiếu xử, nhưng... <strong>lạ thay, không ai chết.</strong>",
+    "lynch_fail": "Không ai bị xử 🕊️",
+    "lynch_result": "⚖️ <strong>{name}</strong> đã bị xử! Họ là {role} ⚰️",
+    "lynch_success": "⚖️ <strong>{name}</strong> đã bị xử! Họ là <strong>{role}</strong> ⚰️",
+    "mayor_tie": "⚖️ <strong>Hòa phiếu!</strong> Trưởng làng đã phá thế hòa và chọn xử {target}!",
+    "night_kill": "🐾 Những phần còn lại của một thi thể đã được tìm thấy! <strong>{name}</strong> đã bị giết. Họ là {role}.",
+    "phase_change_msg": "Pha mới đã bắt đầu: <strong>{phase}</strong>.",
+    "prostitute_block": "💋 Kỹ nữ đã ghé thăm khiến bạn mất tập trung! 💦",
+    "prostitute_collat": "👠 <strong>Hậu quả cuộc hẹn:</strong> {name} cũng chết 🔞 Họ là {role}.",
+    "prostitute_win": "🥰 Kỹ nữ đã kết bạn với nhiều người và giành chiến thắng cá nhân 🥇",
+    "seer_result": "🔮 Linh ảnh cho bạn biết <strong>{name}</strong> là <strong>{role}</strong>.",
+    "solo_win_continue": "🥇 <span style='color: #fdd835'>{role} {name}</span> đã giành chiến thắng cá nhân!",
+    "strangely": "Lạ thay, không ai chết...",
+    "sun_rise_safe": "🌞 Mặt trời mọc và không ai bị giết.",
+    "tie_deadlock": "Hòa phiếu bế tắc. Không ai bị xử.",
+    "tie_restart": "⚖️ Hòa phiếu! Hãy thảo luận lại.",
+    "trial_started": "⛓️ <strong>{target}</strong> đang bị đưa ra xét xử!",
+    "village_poll": "📊 <strong>Thăm dò dân làng:</strong> <em>{prompt}</em> <span style='color: #ff5252'><strong>{target}</strong></span>",
+    "win_solo": "Người thắng cá nhân {role} {name} đã hoàn thành mục tiêu!",
+    "win_villagers": "Toàn bộ Ma Sói đã bị tiêu diệt.",
+    "win_werewolves": "Ma Sói đã chiếm được ngôi làng.",
+    "wolf_lone": "Bạn là Ma Sói duy nhất 🐺",
+    "wolf_team": "Bạn là Ma Sói 🐺 Các Ma Sói đồng đội của bạn là: <strong>{mates}</strong>.",
+    "timer_expired": "Đồng hồ của {phase} đã hết giờ.",
+    "player_joined_admin": "{name} đã vào phòng chờ.",
+    "player_joined": "{name} đã tham gia ván chơi.",
+    "player_reconnected": "{name} đã kết nối lại.",
+    "admin_reconnected": "Quản trò đã kết nối lại.",
+    "player_disconnected": "{name} đã mất kết nối.",
+    "admin_transferred": "Quyền quản trò đã được chuyển từ {from_name} sang {to_name}.",
+    "timers_paused": "Đã tạm dừng đồng hồ.",
+    "timers_resumed": "Đã tiếp tục đồng hồ.",
+    "timers_updated": "Đã cập nhật thời gian: ban đêm {night} giây, chỉ điểm {accusation} giây, bỏ phiếu xử {lynch} giây.",
+    "game_started": "Ván chơi đã bắt đầu.",
+    "game_started_mode": "Ván chơi đã bắt đầu ở chế độ {mode}.",
+    "admin_advanced_phase": "Quản trò đã chuyển ván chơi sang {phase}.",
+    "game_over_winner": "Ván chơi kết thúc. Người thắng: {winner}.",
+    "mayor_successor_selected": "{name} đã được chọn làm Trưởng làng kế nhiệm.",
+    "mayor_successor_promoted": "Trưởng làng đã chết. Trưởng làng <strong>{name}</strong> muôn năm!",
+    "honeypot_retaliation_generic": "🍯 Mồi nhử đã kéo theo một người chơi khác!",
+    "honeypot_retaliation_lynch": "🍯 <strong>{name}</strong> bị chọn từ nhóm bỏ phiếu xử và chết cùng Mồi nhử. Họ là <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_wolf": "🍯 Bẫy của Mồi nhử đã hạ <strong>{name}</strong> trong bầy Sói. Họ là <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_witch": "🍯 Bẫy của Mồi nhử đã hạ <strong>{name}</strong>. Họ là <strong>{role}</strong> ⚰️",
+    "honeypot_retaliation_serial": "🍯 Bẫy của Mồi nhử đã hạ <strong>{name}</strong>. Họ là <strong>{role}</strong> ⚰️"
+  },
+  "roles": {
+    "Magic_User": {
+      "name": "Người dùng phép thuật"
+    },
+    "Non_Magic_User": {
+      "name": "Người không dùng phép thuật"
+    },
+    "Villager": {
+      "name": "Dân làng",
+      "short": "Tìm ra Ma Sói và bỏ phiếu loại chúng.",
+      "long": "Bạn không có năng lực đặc biệt vào ban đêm. Sức mạnh của bạn nằm ở lá phiếu và khả năng suy luận. Hãy lắng nghe mọi người, tìm ra những điểm mâu thuẫn và bỏ phiếu xử lũ Ma Sói.",
+      "night": {
+        "prompt": "{prompt}",
+        "button": "Chọn",
+        "feedback": "Bạn đã đưa ra một lựa chọn thú vị khi chọn {target}. Giờ bạn đang mơ về món pupusa ngon lành trong khi những sinh vật bóng đêm bắt đầu thức giấc..."
+      }
+    },
+    "Werewolf": {
+      "name": "Ma Sói",
+      "short": "Giết Dân làng vào ban đêm và đừng để bị phát hiện.",
+      "long": "Bạn là một thành viên của bầy Sói. Mỗi đêm, bạn thức dậy cùng các Ma Sói khác và phải thống nhất hoặc đạt trên 80% số phiếu để chọn một nạn nhân. Ban ngày, bạn phải phối hợp với đồng đội nhưng vẫn giả vờ là Dân làng vô tội để tránh bị phát hiện.",
+      "night": {
+        "prompt": "Ma Sói, đêm nay bạn sẽ ăn thịt ai?",
+        "button": "Giết",
+        "feedback": "Bạn đang thèm thịt {target}."
+      }
+    },
+    "Seer": {
+      "name": "Tiên tri",
+      "short": "Mỗi đêm, soi vai của một người chơi! (Có phải Ma Sói không?)",
+      "long": "Bạn là người điều tra quyền năng nhất của ngôi làng. Mỗi đêm, bạn chọn một người để biết họ thuộc phe Ma Sói hay phe Dân làng. Lưu ý: Quái vật sẽ hiện ra như Ma Sói.",
+      "night": {
+        "prompt": "Tiên tri, bạn muốn soi vai của ai?",
+        "button": "Soi",
+        "feedback": "Bạn đã soi vai của {target}."
+      }
+    },
+    "Alpha_Werewolf": {
+      "name": "Sói đầu đàn",
+      "short": "Thắng cá nhân nếu là người cuối cùng trụ lại.",
+      "long": "Bạn là thủ lĩnh của bầy Sói và cùng cả bầy bỏ phiếu giết người vào ban đêm. Tuy nhiên, mục tiêu thật sự của bạn là độc chiếm đỉnh núi. Bạn thắng cá nhân nếu là Ma Sói duy nhất còn sống và ngoài bạn chỉ còn nhiều nhất một người không phải Quái vật.",
+      "night": {
+        "prompt": "Ma Sói, đêm nay bạn sẽ ăn thịt ai?",
+        "button": "Giết",
+        "feedback": "Bạn đang thèm thịt {target}."
+      }
+    },
+    "Bodyguard": {
+      "name": "Bảo vệ",
+      "short": "Chọn một người để bảo vệ khỏi Ma Sói.",
+      "long": "Mỗi đêm, bạn có thể chọn một người để bảo vệ. Nếu Ma Sói tấn công người đó, sự bảo vệ của bạn sẽ cứu họ và không ai phải chết. Bạn không thể bảo vệ cùng một người trong hai đêm liên tiếp.",
+      "night": {
+        "prompt": "Bảo vệ, đêm nay bạn sẽ bảo vệ ai?",
+        "button": "Bảo vệ",
+        "feedback": "Đã gửi lệnh bảo vệ {target}."
+      }
+    },
+    "Cupid": {
+      "name": "Thần Tình Yêu",
+      "short": "Kết duyên hai người bằng một tình yêu sinh tử.",
+      "long": "Trong đêm đầu tiên, bạn chọn hai người làm 'Người yêu'. Cả hai sẽ biết người yêu của mình là ai. Số phận của họ gắn liền với nhau: nếu một người bị giết vào ban đêm hoặc bị xử, người kia sẽ lập tức chết vì tan nát cõi lòng.",
+      "night": {
+        "prompt": "Chọn hai người yêu nhau:",
+        "description": "Hai người được chọn sẽ yêu nhau đến chết. Nếu một người chết, người kia cũng chết vì đau lòng.",
+        "button": "Bắn mũi tên",
+        "feedback": "Tình yêu đang lan tỏa... {target} & {target2}."
+      }
+    },
+    "Demented_Villager": {
+      "name": "Dân làng điên",
+      "short": "Thắng cá nhân nếu là người cuối cùng trụ lại.",
+      "long": "Bạn không có năng lực đặc biệt và hiện ra như Dân làng khi bị Tiên tri soi. Tuy nhiên, bạn quyết tâm loại tất cả mọi người để giành chiến thắng. Lưu ý: bạn không được coi là người cuối cùng nếu vẫn còn Quái vật, Mồi nhử, Thợ săn, Sát nhân hoặc Đứa trẻ hoang dã.",
+      "night": {
+        "prompt": "{prompt}",
+        "button": "Chọn",
+        "feedback": "Bạn đã đưa ra một lựa chọn thú vị khi chọn {target}."
+      }
+    },
+    "Fool": {
+      "name": "Kẻ ngốc",
+      "short": "Cố khiến dân làng bỏ phiếu xử chính mình.",
+      "long": "Bạn là kẻ gây hỗn loạn thuộc phe trung lập, không đứng về phía Dân làng hay Ma Sói. Bạn sẽ giành chiến thắng nếu thuyết phục được cả làng bỏ phiếu xử mình.",
+      "night": {
+        "prompt": "{prompt}",
+        "button": "Chọn",
+        "feedback": "Bạn đã đưa ra một lựa chọn thú vị khi chọn {target}."
+      }
+    },
+    "Honeypot": {
+      "name": "Mồi nhử",
+      "short": "Một cái bẫy sống: nếu bị giết, kẻ giết bạn cũng chết.",
+      "long": "Bạn là Dân làng nhưng rất nguy hiểm nếu ai đó động vào. Nếu bạn bị Ma Sói giết hoặc bị đám đông bỏ phiếu xử, kẻ gây ra cái chết của bạn cũng phải đền mạng.",
+      "night": {
+        "prompt": "{prompt}",
+        "button": "Chọn",
+        "feedback": "Bạn đã đưa ra một lựa chọn thú vị khi chọn {target}."
+      }
+    },
+    "Hunter": {
+      "name": "Thợ săn",
+      "short": "Có thể hạ một người khác bằng hơi thở cuối cùng.",
+      "long": "Vào ban đêm, bạn có thể chọn một người để bắn hạ khi mình chết.",
+      "night": {
+        "prompt": "Thợ săn: NẾU chết, bạn sẽ bắn ai?",
+        "button": "Ngắm bắn",
+        "feedback": "Bạn đang ngắm vào {target} (chỉ khai hỏa nếu bạn chết)."
+      }
+    },
+    "Backlash_Werewolf": {
+      "name": "Ma Sói báo thù",
+      "short": "Có thể hạ một người khác bằng hơi thở cuối cùng.",
+      "long": "Bạn là Ma Sói có phản xạ chết người. Mỗi đêm, bạn có thể chọn một người làm mục tiêu báo thù khi mình chết.",
+      "night": {
+        "prompt": "Hành động của Ma Sói báo thù",
+        "description": "1. Bỏ phiếu giết người ban đêm (hành động của bầy)<br>2. Chọn mục tiêu báo thù (người đó chết nếu bạn chết)",
+        "button": "Gửi lựa chọn",
+        "feedback": "Bạn đã bỏ phiếu giết {target} và đánh dấu {target2} làm mục tiêu báo thù."
+      }
+    },
+    "Lawyer": {
+      "name": "Luật sư",
+      "short": "Chọn một thân chủ để họ không thể bị xử vào ngày hôm sau.",
+      "long": "Bạn bảo vệ người bị buộc tội. Vào ban đêm, bạn chọn một người làm thân chủ. Nếu người đó bị đưa ra bỏ phiếu xử, cuộc hành hình sẽ thất bại và họ sẽ sống sót.",
+      "night": {
+        "prompt": "Luật sư, bạn sẽ bào chữa cho ai trước phiên tòa khỉ này?",
+        "button": "Bào chữa",
+        "feedback": "Bạn đang chuẩn bị lời bào chữa cho {target}."
+      }
+    },
+    "Martyr": {
+      "name": "Người hy sinh",
+      "short": "Trao cho một người mạng sống thứ hai khi mình chết.",
+      "long": "Vào ban đêm, bạn có thể chọn một người để nhận sinh lực của mình khi bạn chết.",
+      "night": {
+        "prompt": "Người hy sinh, khi chết bạn sẽ ban mạng sống thứ hai cho ai?",
+        "button": "Ban phước",
+        "feedback": "Bạn đang dõi theo {target}."
+      }
+    },
+    "Mayor": {
+      "name": "Trưởng làng",
+      "short": "Lá phiếu của bạn có thể phá thế hòa khi chỉ điểm.",
+      "long": "Bạn là người đứng đầu ngôi làng. Nhờ ảnh hưởng chính trị, lá phiếu của bạn có quyền phá thế hòa trong vòng chỉ điểm ban ngày. Bạn có thể bí mật chọn người kế nhiệm. Người kế nhiệm chỉ có thể chọn người kế nhiệm tiếp theo nếu vai của họ không có hành động ban đêm, chẳng hạn như Dân làng hoặc Quái vật.",
+      "night": {
+        "prompt": "Trưởng làng, ai sẽ là Trưởng làng tiếp theo?",
+        "button": "Chọn kế nhiệm",
+        "feedback": "Chính trị tuyệt lắm, phải không {target} ;)"
+      }
+    },
+    "Monster": {
+      "name": "Quái vật",
+      "short": "Không thuộc phe nào. Thắng cá nhân nếu là người cuối cùng trụ lại.",
+      "long": "Bạn là một quái thú siêu nhiên, không thuộc phe Dân làng hay phe Ma Sói mà chỉ chiến đấu cho riêng mình. Bạn miễn nhiễm với các đòn tấn công của Ma Sói và hiện ra như Ma Sói khi bị soi. Bạn thắng cá nhân nếu còn sống và chỉ còn nhiều nhất một Ma Sói sống sót.",
+      "night": {
+        "prompt": "{prompt}",
+        "button": "Chọn",
+        "feedback": "Bạn đã đưa ra một lựa chọn thú vị khi chọn {target}."
+      }
+    },
+    "Prostitute": {
+      "name": "Kỹ nữ",
+      "short": "Ghé thăm một người vào ban đêm và chặn hành động của họ.",
+      "long": "Mỗi đêm, bạn có thể ghé thăm một người khác. Lựa chọn hành động ban đêm của người được ghé thăm sẽ bí mật bị hủy. Nếu bạn hoặc người đó bị giết, cả hai đều chết. Hãy ghé thăm phần lớn người chơi để giành chiến thắng cá nhân!",
+      "night": {
+        "prompt": "Kỹ nữ, đêm nay bạn sẽ ghé thăm ai?",
+        "button": "Ghé thăm",
+        "feedback": "Bạn sẽ ghé thăm {target}."
+      }
+    },
+    "Random_Seer": {
+      "name": "Tiên tri bất định",
+      "short": "Có trạng thái bí mật: sáng suốt, hoang tưởng, ngây thơ hoặc điên đảo.",
+      "long": "Có 25% khả năng bạn sáng suốt và soi đúng, 25% hoang tưởng nên thấy ai cũng là Ma Sói, 25% ngây thơ nên chỉ thấy Dân làng, và 25% điên đảo nên thấy kết quả ngược lại. Nên dùng vai này cùng Tiên tri thường. Trạng thái tinh thần của bạn là thông tin bí mật.",
+      "night": {
+        "prompt": "Tiên tri, bạn muốn soi vai của ai?",
+        "button": "Soi",
+        "feedback": "Bạn đã soi vai của {target}."
+      }
+    },
+    "Revealer": {
+      "name": "Người soi vai",
+      "short": "Soi Ma Sói thì Ma Sói chết; soi Dân làng thì bạn chết.",
+      "long": "Bạn nắm giữ một năng lực đầy rủi ro. Khi chọn soi một người, nếu họ là Ma Sói thì họ sẽ bị lộ và chết ngay lập tức. Nếu họ là Dân làng, bạn sẽ chết vì xấu hổ do buộc tội người vô tội.",
+      "night": {
+        "prompt": "Người soi vai: Hãy vạch mặt một Ma Sói. Nếu đoán sai, bạn sẽ chết💀",
+        "button": "Soi vai",
+        "feedback": "Bạn đã soi {target}."
+      }
+    },
+    "Serial_Killer": {
+      "name": "Sát nhân",
+      "short": "Mỗi đêm giết một người. Thắng nếu là người cuối cùng trụ lại.",
+      "long": "Bạn là phe thứ ba, không thắng cùng Dân làng hay Ma Sói. Mỗi đêm, bạn chọn một nạn nhân để sát hại. Bảo vệ không thể ngăn các vụ giết người của bạn. Bạn chỉ có thể thắng cá nhân khi ngoài mình còn nhiều nhất một người sống không thuộc phe Ma Sói và không phải Quái vật.",
+      "night": {
+        "prompt": "Sát nhân, nạn nhân tiếp theo của bạn là ai?",
+        "button": "Sát hại",
+        "feedback": "🪚Bạn đã chuẩn bị công cụ cho {target}."
+      }
+    },
+    "Sorcerer": {
+      "name": "Pháp sư phe Sói",
+      "short": "Thuộc phe Ma Sói. Tìm các vai có phép thuật khác.",
+      "long": "Bạn thuộc phe Ma Sói nhưng không thức dậy cùng chúng để giết người. Thay vào đó, bạn điều tra người chơi để tìm Tiên tri hoặc những người dùng phép thuật khác như Phù thủy và Người soi vai.",
+      "night": {
+        "prompt": "Pháp sư phe Sói, hãy tìm Tiên tri hoặc Phù thủy!",
+        "button": "Dò tìm",
+        "feedback": "Bạn nhìn vào hư không và thấy vai của {target}."
+      }
+    },
+    "Tough_Villager": {
+      "name": "Dân làng cứng cỏi",
+      "short": "Dân làng có thể sống sót qua một lần chết.",
+      "long": "Bạn không có năng lực chủ động nhưng đang mặc áo giáp. Lần đầu tiên phải chết, bạn sẽ sống sót một cách bí ẩn. Bạn chỉ thực sự chết ở lần thứ hai.",
+      "night": {
+        "prompt": "{prompt}",
+        "button": "Chọn",
+        "feedback": "Bạn đã đưa ra một lựa chọn thú vị khi chọn {target}."
+      }
+    },
+    "Tough_Werewolf": {
+      "name": "Ma Sói cứng cỏi",
+      "short": "Sống sót qua lần đầu tiên bị tước mạng.",
+      "long": "Bạn đi săn cùng bầy Sói. Nếu bị Thợ săn bắn, Phù thủy đầu độc, đám đông bỏ phiếu xử hoặc Sát nhân tấn công, bạn sẽ sống sót qua đòn đầu tiên đó.",
+      "night": {
+        "prompt": "Ma Sói, đêm nay bạn sẽ ăn thịt ai?",
+        "button": "Giết",
+        "feedback": "Bạn đang thèm thịt {target}."
+      }
+    },
+    "Wild_Child": {
+      "name": "Đứa trẻ hoang dã",
+      "short": "Chọn một hình mẫu; khi người đó chết, bạn trở thành Ma Sói.",
+      "long": "Trong đêm đầu tiên, bạn chọn một người khác làm 'Hình mẫu'. Chừng nào người đó còn sống và che chở cho bạn, bạn vẫn là con người. Nếu họ chết, bạn sẽ trở thành Ma Sói và gia nhập bầy.",
+      "night": {
+        "prompt": "Đứa trẻ hoang dã, hãy chọn hình mẫu của bạn:",
+        "button": "Chọn",
+        "feedback": "Bạn xem {target} là hình mẫu."
+      }
+    },
+    "Witch": {
+      "name": "Phù thủy",
+      "short": "Có hai bình thuốc: một bình giết người và một bình cứu người.",
+      "long": "Bạn thức dậy trước Ma Sói. Bạn có thể dùng Bình Cứu Chữa để cứu nạn nhân nếu đoán đúng, hoặc dùng Bình Độc để giết một người khác do mình chọn. Mỗi bình chỉ được dùng một lần trong cả ván.",
+      "night": {
+        "prompt": "Phù thủy, ai sẽ uống thuốc?",
+        "button": "Cho uống thuốc",
+        "feedback": "{target} đã uống {potion}.",
+        "potion_heal": "Bình Cứu Chữa",
+        "potion_poison": "Bình Độc",
+        "potion_none": "Không làm gì"
+      }
+    }
+  }
+}
