@@ -308,6 +308,67 @@ class LeaveRoomTests(unittest.TestCase):
                 self.assertIsNone(replacement_engine.game_over_data)
                 broadcast.assert_not_called()
 
+    def test_delayed_pnp_action_cannot_resolve_new_game_after_room_reset(self):
+        client, socket_client = self.connect_player("only", "Only")
+        settings = {"mode": "pass_and_play"}
+        self.configure_active_game(["only"], settings=settings)
+        app_module.set_current_admin("only")
+        old_engine = app_module.game_instance
+        entered_pause = Event()
+        release_handler = Event()
+        errors = []
+
+        def pause_before_resolution(_seconds):
+            if not entered_pause.is_set():
+                entered_pause.set()
+                release_handler.wait(2)
+
+        def submit_last_action():
+            try:
+                socket_client.emit(
+                    "pnp_submit_action",
+                    {"actor_id": "only", "target_id": "only"},
+                )
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        with (
+            patch.object(app_module.socketio, "emit"),
+            patch.object(
+                app_module.socketio,
+                "sleep",
+                side_effect=pause_before_resolution,
+            ),
+            patch.object(app_module, "broadcast_game_state"),
+            patch.object(app_module, "check_game_over_or_next_phase"),
+            patch.object(old_engine, "resolve_night_deaths") as old_resolve,
+        ):
+            handler = Thread(target=submit_last_action)
+            handler.start()
+            self.assertTrue(entered_pause.wait(1))
+
+            response = client.post("/leave-room", json={})
+            replacement_engine = app_module.game_instance
+            replacement_engine.add_player("new-player", "New Player")
+            replacement_engine.players["new-player"].role = Villager()
+            replacement_engine.phase = PHASE_NIGHT
+            app_module.game["game_state"] = "started"
+
+            with patch.object(
+                replacement_engine,
+                "resolve_night_deaths",
+                return_value=[],
+            ) as replacement_resolve:
+                release_handler.set()
+                handler.join(2)
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual([], errors)
+        self.assertFalse(handler.is_alive())
+        self.assertIsNot(old_engine, replacement_engine)
+        old_resolve.assert_not_called()
+        replacement_resolve.assert_not_called()
+
     def test_non_json_request_cannot_leave_payload_selected_player(self):
         attacker_client, _ = self.connect_player("attacker", "Attacker")
         self.connect_player("victim", "Victim")

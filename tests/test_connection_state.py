@@ -1,7 +1,7 @@
 import unittest
 
 import app as app_module
-from game_engine import Game, PHASE_LOBBY, PHASE_NIGHT
+from game_engine import Game, PHASE_GAME_OVER, PHASE_LOBBY, PHASE_NIGHT
 from roles import Villager
 
 
@@ -147,6 +147,34 @@ class ConnectionStateTests(unittest.TestCase):
         self.assertEqual("left", public_players["leaving"]["connection_state"])
         self.assertEqual("connected", public_players["remaining"]["connection_state"])
         self.assertEqual(1, public_state["rematch_eligible_count"])
+
+    def test_rematch_vote_from_player_who_left_is_not_counted(self):
+        self.connect_player("admin", "Admin")
+        leaving_client, leaving_socket = self.connect_player("leaving", "Leaving")
+        _, voter_socket = self.connect_player("voter", "Voter")
+        self.connect_player("remaining", "Remaining")
+        self.configure_active_game(["admin", "leaving", "voter", "remaining"])
+        app_module.game_instance.phase = PHASE_GAME_OVER
+        app_module.game["game_state"] = PHASE_GAME_OVER
+
+        leaving_socket.emit("vote_for_rematch")
+        response = leaving_client.post("/leave-room", json={})
+
+        self.assertEqual(200, response.status_code)
+        public_state = app_module.get_public_game_state()
+        self.assertEqual(3, public_state["rematch_eligible_count"])
+        self.assertEqual(0, public_state["rematch_vote_count"])
+
+        voter_socket.get_received()
+        voter_socket.emit("vote_for_rematch")
+        updates = [
+            event["args"][0]
+            for event in voter_socket.get_received()
+            if event["name"] == "rematch_vote_update"
+        ]
+
+        self.assertEqual(PHASE_GAME_OVER, app_module.game["game_state"])
+        self.assertEqual({"count": 1, "total": 3}, updates[-1])
 
     def test_game_payload_exposes_connection_state_for_each_engine_player(self):
         _, connected_socket = self.connect_player("connected", "Connected")

@@ -439,28 +439,29 @@ socket.on("update_player_list", (data) => {
 
     if (
       isPlayerAdmin &&
-      player.id !== currentPlayerId &&
-      connectionState === "connected"
+      player.id !== currentPlayerId
     ) {
-      const adminBtn = document.createElement("span");
-      adminBtn.textContent = "🪄";
-      adminBtn.className = "exclude-btn"; // Reuse style or add new class
-      adminBtn.style.marginRight = "5px";
-      adminBtn.title = t("ui.lobby.make_admin_title");
-      adminBtn.onclick = (e) => {
-        e.stopPropagation();
-        if (
-          confirm(
-            t({
-              key: "ui.lobby.confirm_make_admin",
-              variables: { name: player.name },
-            }),
-          )
-        ) {
-          socket.emit("admin_transfer_admin", { target_id: player.id });
-        }
-      };
-      li.appendChild(adminBtn);
+      if (connectionState === "connected") {
+        const adminBtn = document.createElement("span");
+        adminBtn.textContent = "🪄";
+        adminBtn.className = "exclude-btn"; // Reuse style or add new class
+        adminBtn.style.marginRight = "5px";
+        adminBtn.title = t("ui.lobby.make_admin_title");
+        adminBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (
+            confirm(
+              t({
+                key: "ui.lobby.confirm_make_admin",
+                variables: { name: player.name },
+              }),
+            )
+          ) {
+            socket.emit("admin_transfer_admin", { target_id: player.id });
+          }
+        };
+        li.appendChild(adminBtn);
+      }
 
       const excludeBtn = document.createElement("span");
       excludeBtn.textContent = t("ui.lobby.exclude_btn");

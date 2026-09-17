@@ -121,6 +121,110 @@ class EventValidationTests(unittest.TestCase):
                 self.assertEqual(timers_before, app_module.game_instance.timer_durations)
                 self.assert_validation_error(admin_socket)
 
+    def test_reviewed_admin_handlers_reject_malformed_payloads_and_ids(self):
+        admin_socket = self.connect_player("admin", "Admin")
+        self.connect_player("target", "Target")
+        cases = (
+            ("admin_exclude_player", None),
+            ("admin_exclude_player", []),
+            ("admin_exclude_player", {"player_id": []}),
+            ("admin_exclude_player", {"player_id": "missing"}),
+            ("admin_transfer_admin", None),
+            ("admin_transfer_admin", []),
+            ("admin_transfer_admin", {"target_id": []}),
+            ("admin_transfer_admin", {"target_id": "missing"}),
+        )
+
+        for event_name, payload in cases:
+            with self.subTest(event=event_name, payload=payload):
+                players_before = set(app_module.game["players"])
+                admin_before = app_module.game["admin_sid"]
+                admin_socket.get_received()
+
+                try:
+                    admin_socket.emit(event_name, payload)
+                except (AttributeError, TypeError) as exc:
+                    self.fail(
+                        f"{event_name} raised instead of emitting validation error: {exc}"
+                    )
+
+                self.assertEqual(players_before, set(app_module.game["players"]))
+                self.assertEqual(admin_before, app_module.game["admin_sid"])
+                self.assert_validation_error(admin_socket)
+
+    def test_reviewed_gameplay_handlers_reject_malformed_payloads_and_ids(self):
+        admin_socket = self.connect_player("admin", "Admin")
+        self.connect_player("actor", "Actor")
+        self.connect_player("target", "Target")
+        self.configure_started_game(mode="pass_and_play")
+        cases = (
+            ("accuse_player", PHASE_ACCUSATION, None),
+            ("accuse_player", PHASE_ACCUSATION, []),
+            (
+                "accuse_player",
+                PHASE_ACCUSATION,
+                {"actor_id": [], "target_id": "target"},
+            ),
+            (
+                "accuse_player",
+                PHASE_ACCUSATION,
+                {"actor_id": "actor", "target_id": []},
+            ),
+            (
+                "accuse_player",
+                PHASE_ACCUSATION,
+                {"actor_id": "actor", "target_id": "missing"},
+            ),
+            ("pnp_submit_action", PHASE_NIGHT, None),
+            ("pnp_submit_action", PHASE_NIGHT, []),
+            (
+                "pnp_submit_action",
+                PHASE_NIGHT,
+                {"actor_id": [], "target_id": "target"},
+            ),
+            (
+                "pnp_submit_action",
+                PHASE_NIGHT,
+                {"actor_id": "actor", "target_id": []},
+            ),
+            (
+                "pnp_submit_action",
+                PHASE_NIGHT,
+                {"actor_id": "actor", "target_id": "missing"},
+            ),
+        )
+
+        for event_name, phase, payload in cases:
+            with self.subTest(event=event_name, payload=payload):
+                app_module.game_instance.phase = phase
+                app_module.game_instance.pending_actions = {}
+                app_module.game_instance.turn_history = set()
+                admin_socket.get_received()
+
+                try:
+                    admin_socket.emit(event_name, payload)
+                except (AttributeError, TypeError) as exc:
+                    self.fail(
+                        f"{event_name} raised instead of emitting validation error: {exc}"
+                    )
+
+                self.assertEqual({}, app_module.game_instance.pending_actions)
+                self.assertEqual(set(), app_module.game_instance.turn_history)
+                self.assert_validation_error(admin_socket)
+
+    def test_disconnected_player_can_be_excluded_without_emitting_to_admin(self):
+        admin_socket = self.connect_player("admin", "Admin")
+        target_socket = self.connect_player("target", "Target")
+        target_socket.disconnect()
+        admin_socket.get_received()
+
+        admin_socket.emit("admin_exclude_player", {"player_id": "target"})
+        received_names = [event["name"] for event in admin_socket.get_received()]
+
+        self.assertTrue(admin_socket.is_connected())
+        self.assertNotIn("target", app_module.game["players"])
+        self.assertNotIn("force_kick", received_names)
+
     def test_settings_updates_reject_unknown_mode_and_non_boolean_options(self):
         admin_socket = self.connect_player("admin", "Admin")
         cases = (
@@ -376,6 +480,23 @@ class EventValidationTests(unittest.TestCase):
         self.assertEqual(prior_history, app_module.game_instance.message_history)
         self.assertNotIn("accusation_made", received_names)
         self.assertNotIn("accusation_update", received_names)
+
+    def test_sleep_vote_during_accusation_resolution_is_ignored(self):
+        admin_socket = self.connect_player("admin", "Admin")
+        self.connect_player("player-2", "Player Two")
+        self.connect_player("player-3", "Player Three")
+        self.configure_started_game(mode="pass_and_play")
+        app_module.game_instance.phase = PHASE_ACCUSATION
+        token = app_module.game_instance.begin_phase_resolution(PHASE_ACCUSATION)
+        admin_socket.get_received()
+
+        admin_socket.emit("vote_to_end_day", {"actor_id": "admin"})
+        received_names = [event["name"] for event in admin_socket.get_received()]
+        app_module.game_instance.finish_phase_resolution(token)
+
+        self.assertEqual(set(), app_module.game_instance.end_day_votes)
+        self.assertNotIn("end_day_vote_update", received_names)
+        self.assertNotIn("pnp_action_confirmed", received_names)
 
     def test_lynch_votes_reject_values_outside_existing_enum(self):
         self.connect_player("admin", "Admin")

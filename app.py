@@ -387,6 +387,12 @@ def emit_to_player_ids(event, payload, player_ids):
             socketio.emit(event, payload, to=player_wrapper.sid)
 
 
+def get_rematch_vote_status():
+    eligible_ids = set(game["players"]).intersection(game_instance.players)
+    valid_votes = game_instance.rematch_votes.intersection(eligible_ids)
+    return len(valid_votes), len(eligible_ids)
+
+
 def log_and_emit(message, log_text=None):
     print(log_text if log_text is not None else message)
     socketio.emit("log_message", {"text": message}, to=game["game_code"])
@@ -468,6 +474,8 @@ def get_public_game_state():
         elif game_instance.phase == PHASE_LYNCH:
             acted_ids = list(game_instance.pending_actions.keys())
 
+        rematch_vote_count, rematch_eligible_count = get_rematch_vote_status()
+
         return {
             "accusation_counts": accusation_counts,
             "acted_players": acted_ids,
@@ -485,10 +493,8 @@ def get_public_game_state():
             "mode": game_instance.mode,
             "phase": game_instance.phase,
             "phase_end_time": game_instance.phase_end_time,
-            "rematch_eligible_count": sum(
-                1 for p in game_instance.players.values() if p.id in game["players"]
-            ),
-            "rematch_vote_count": len(game_instance.rematch_votes),
+            "rematch_eligible_count": rematch_eligible_count,
+            "rematch_vote_count": rematch_vote_count,
             "sleep_vote_count": len(game_instance.end_day_votes),
             "timers_disabled": game_instance.timers_disabled,
             "total_accusation_duration": game_instance.timer_durations.get(
@@ -1108,8 +1114,8 @@ def handle_admin_transfer(data):
         return
 
     target_id = data.get("target_id")
-    if not target_id or target_id not in game["players"]:
-        return
+    if not isinstance(target_id, str) or target_id not in game["players"]:
+        return emit_validation_error()
 
     current_admin_id, _ = get_request_player()
 
@@ -1222,10 +1228,16 @@ def handle_admin_set_timers(data):
 def handle_admin_exclude_player(data):
     if not is_request_admin() or game["game_state"] != PHASE_LOBBY:
         return
+    data = require_dict_payload(data)
+    if data is None:
+        return
     player_id = data.get("player_id")
-    if player_id in game["players"]:
-        sid = game["players"][player_id].sid
-        del game["players"][player_id]
+    if not isinstance(player_id, str) or player_id not in game["players"]:
+        return emit_validation_error()
+
+    sid = game["players"][player_id].sid
+    del game["players"][player_id]
+    if sid:
         emit("force_kick", to=sid)
     if player_id in game_instance.players:
         del game_instance.players[player_id]
@@ -1590,12 +1602,20 @@ def handle_pnp_action(data):
         return emit_validation_error()
 
     print(f"handle_pnp_action")
-    result = game_instance.receive_night_action(
+    originating_game = game_instance
+    originating_phase = originating_game.phase
+    result = originating_game.receive_night_action(
         actor_id, data.get("target_id")
     )
     if result == "RESOLVED":
         socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
-        resolve_night()
+        if (
+            originating_game is not game_instance
+            or originating_phase != PHASE_NIGHT
+            or originating_game.phase != originating_phase
+        ):
+            return
+        resolve_night(originating_game)
     else:
         # Confirm receipt to client so they can show "Passed" screen
         emit("action_accepted", {}, to=request.sid)
@@ -1737,8 +1757,10 @@ def handle_cast_lynch_vote(data):
 # --- Resolution ---
 
 
-def resolve_night():
-    resolving_game = game_instance
+def resolve_night(expected_game=None):
+    resolving_game = expected_game or game_instance
+    if resolving_game is not game_instance:
+        return
     token = resolving_game.begin_phase_resolution(PHASE_NIGHT)
     if token is None:
         return
@@ -1846,23 +1868,22 @@ def handle_vote_to_end_day(data=None):
     if not pid:
         return
 
-    # 1. Get the Engine Player Object
-    engine_player = game_instance.players.get(pid)
-    if not engine_player:
-        return
+    voting_game = game_instance
+    with voting_game.lock:
+        engine_player = voting_game.players.get(pid)
+        if (
+            voting_game is not game_instance
+            or not engine_player
+            or not engine_player.is_alive
+            or voting_game.phase != PHASE_ACCUSATION
+            or voting_game.is_phase_resolving(PHASE_ACCUSATION)
+        ):
+            return
 
-    # 2. Strict Liveness Check
-    # Only ALIVE players should control the day/night cycle speed.
-    if not engine_player.is_alive:
-        return
-    if game_instance.phase != PHASE_ACCUSATION:
-        return
-
-    # 4. Add Vote (Manually add to the set)
-    game_instance.end_day_votes.add(pid)
-    living_count = len(game_instance.get_living_players())
-    votes_count = len(game_instance.end_day_votes)
-    majority = votes_count > (living_count / 2)
+        voting_game.end_day_votes.add(pid)
+        living_count = len(voting_game.get_living_players())
+        votes_count = len(voting_game.end_day_votes)
+        majority = votes_count > (living_count / 2)
     emit(
         "end_day_vote_update",
         {"count": votes_count, "total": living_count},
@@ -1884,8 +1905,7 @@ def handle_vote_for_rematch():
         return
     if player_id not in game_instance.rematch_votes:
         game_instance.rematch_votes.add(player_id)
-        num_votes = len(game_instance.rematch_votes)
-        total_players = len(game["players"])
+        num_votes, total_players = get_rematch_vote_status()
         if num_votes > total_players / 2 or is_request_admin():
             old_settings = getattr(game_instance, "settings", {})
             game_instance = Game("main_game", settings=old_settings)
