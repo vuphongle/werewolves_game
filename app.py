@@ -342,7 +342,8 @@ def get_authorized_actor(data, allow_pnp=False):
         return None
 
     actor_id = data.get("actor_id")
-    if actor_id not in game_instance.players:
+    if not isinstance(actor_id, str) or actor_id not in game_instance.players:
+        emit_validation_error()
         return None
     return actor_id
 
@@ -1569,7 +1570,10 @@ def handle_accuse_player(data):
     if not validate_action_payload(data, allow_empty=True):
         return emit_validation_error()
     tid = data.get("target_id")
-    all_voted = game_instance.process_accusation(pid, tid)
+    accusation_result = game_instance.process_accusation(pid, tid)
+    if accusation_result == "IGNORED":
+        return
+    all_voted = accusation_result
     # 2. Check what was recorded
     recorded_vote = game_instance.pending_actions.get(pid)
     if recorded_vote == "Ghost_Fail":

@@ -205,38 +205,41 @@ class Game:
         return player_id in self.end_day_votes
 
     def set_phase(self, new_phase):
-        self.phase = new_phase
-        self.phase_start_time = time.time()
-        self.current_timer_id += 1
+        with self.lock:
+            self._phase_resolution_phase = None
+            self._phase_resolution_token = None
+            self.phase = new_phase
+            self.phase_start_time = time.time()
+            self.current_timer_id += 1
 
-        duration = self.timer_durations.get(new_phase, 0)
-        self.phase_end_time = time.time() + duration
+            duration = self.timer_durations.get(new_phase, 0)
+            self.phase_end_time = time.time() + duration
 
-        print(f"Phase changed to: {self.phase}, duration: {duration}s")
-        # Trigger cleanup or specific phase logic here
-        if new_phase == PHASE_NIGHT:
-            self.accusation_restarts = 0
-            self.night_count += 1
-            self.pending_actions = {}
-            self.turn_history = set()  # Reset tracker
-            for player_obj in self.players.values():
-                player_obj.reset_night_status()
-                # trigger night hoooks
-                if player_obj.role:
-                    player_obj.role.on_night_start(
-                        player_obj, {"players": list(self.players.values())}
-                    )
-        elif new_phase == PHASE_ACCUSATION:
-            for player_obj in self.players.values():
-                player_obj.visiting_id = None
+            print(f"Phase changed to: {self.phase}, duration: {duration}s")
+            # Trigger cleanup or specific phase logic here
+            if new_phase == PHASE_NIGHT:
+                self.accusation_restarts = 0
+                self.night_count += 1
+                self.pending_actions = {}
+                self.turn_history = set()  # Reset tracker
+                for player_obj in self.players.values():
+                    player_obj.reset_night_status()
+                    # trigger night hoooks
+                    if player_obj.role:
+                        player_obj.role.on_night_start(
+                            player_obj, {"players": list(self.players.values())}
+                        )
+            elif new_phase == PHASE_ACCUSATION:
+                for player_obj in self.players.values():
+                    player_obj.visiting_id = None
 
-            self.pending_actions = {}
-            self.end_day_votes = set()
-            self.lynch_target_id = None
-        elif new_phase == PHASE_LYNCH:
-            self.pending_actions = {}
+                self.pending_actions = {}
+                self.end_day_votes = set()
+                self.lynch_target_id = None
+            elif new_phase == PHASE_LYNCH:
+                self.pending_actions = {}
 
-        self.phase_end_time = time.time() + duration
+            self.phase_end_time = time.time() + duration
 
     def begin_phase_resolution(self, expected_phase):
         with self.lock:
@@ -694,30 +697,30 @@ class Game:
     # --- DAY LOGIC (Accusations & Voting) ---
 
     def process_accusation(self, accuser_id, target_id):
-        """Returns True if this accusation triggered a majority/all-voted condition (optional optimization)."""
+        """Returns IGNORED or whether all living players have voted."""
         with self.lock:
             if self.phase != PHASE_ACCUSATION or self.is_phase_resolving(
                 PHASE_ACCUSATION
             ):
-                return False
+                return "IGNORED"
 
             player = self.players.get(accuser_id)
             if not player:
-                return False
+                return "IGNORED"
+            if accuser_id in self.pending_actions:
+                return "IGNORED"
 
             # GHOST LOGIC
             vote_value = target_id
             if not player.is_alive:
                 if not self.is_ghost_mode_active():
-                    return False  # Dead cannot vote if ghost mode inactive
+                    return "IGNORED"  # Dead cannot vote if ghost mode inactive
 
                 # 25% Chance check
                 if random.random() > 0.25:
                     vote_value = "Ghost_Fail"
 
-            # Record the vote (if not already voted)
-            if accuser_id not in self.pending_actions:
-                self.pending_actions[accuser_id] = vote_value
+            self.pending_actions[accuser_id] = vote_value
 
             # CHECK: Have all LIVING players voted?
             living_voters = [

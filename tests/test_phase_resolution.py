@@ -44,7 +44,12 @@ class PhaseResolutionClaimTests(unittest.TestCase):
     def test_actions_do_not_mutate_a_phase_being_resolved(self):
         cases = (
             (PHASE_NIGHT, "receive_night_action", ("actor", "target"), "IGNORED"),
-            (PHASE_ACCUSATION, "process_accusation", ("actor", "target"), False),
+            (
+                PHASE_ACCUSATION,
+                "process_accusation",
+                ("actor", "target"),
+                "IGNORED",
+            ),
             (PHASE_LYNCH, "cast_lynch_vote", ("actor", "yes"), False),
         )
 
@@ -65,6 +70,62 @@ class PhaseResolutionClaimTests(unittest.TestCase):
 
 
 class AppResolverSerializationTests(unittest.TestCase):
+    def test_phase_transition_allows_new_phase_actions_and_resolution_claim(self):
+        app_module.game_instance = Game("phase_transition_claim_test")
+        app_module.game_instance.add_player("actor", "Actor")
+        app_module.game_instance.add_player("target", "Target")
+        app_module.game_instance.phase = PHASE_ACCUSATION
+        app_module.game_instance.timers_disabled = True
+        app_module.game = {
+            "admin_sid": None,
+            "game_code": "W",
+            "game_admin_code": "ADMIN",
+            "game_state": "started",
+            "players": {},
+        }
+        phase_changed = Event()
+        release_old_resolver = Event()
+        errors = []
+
+        def hold_after_phase_change(_seconds):
+            phase_changed.set()
+            release_old_resolver.wait(2)
+
+        def run_old_resolver():
+            try:
+                app_module.perform_tally_accusations()
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        with (
+            patch.object(app_module.socketio, "emit"),
+            patch.object(
+                app_module.socketio,
+                "sleep",
+                side_effect=hold_after_phase_change,
+            ),
+            patch.object(app_module, "broadcast_game_state"),
+        ):
+            old_resolver = Thread(target=run_old_resolver)
+            old_resolver.start()
+            self.assertTrue(phase_changed.wait(1))
+
+            action_result = app_module.game_instance.receive_night_action(
+                "actor", "target"
+            )
+            new_token = app_module.game_instance.begin_phase_resolution(PHASE_NIGHT)
+
+            release_old_resolver.set()
+            old_resolver.join(2)
+
+        self.assertEqual([], errors)
+        self.assertFalse(old_resolver.is_alive())
+        self.assertEqual("WAITING", action_result)
+        self.assertEqual("target", app_module.game_instance.pending_actions["actor"])
+        self.assertIsNotNone(new_token)
+        self.assertTrue(app_module.game_instance.is_phase_resolving(PHASE_NIGHT))
+        app_module.game_instance.finish_phase_resolution(new_token)
+
     def test_duplicate_resolver_invocations_produce_one_result(self):
         cases = (
             (PHASE_NIGHT, "resolve_night", "resolve_night_deaths", []),

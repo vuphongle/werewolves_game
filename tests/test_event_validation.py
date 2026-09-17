@@ -348,6 +348,35 @@ class EventValidationTests(unittest.TestCase):
         self.assertEqual("", app_module.game_instance.pending_actions["actor"])
         self.assertEqual([], self.received_error_keys(actor_socket))
 
+    def test_accusation_during_resolution_does_not_repeat_prior_vote_events(self):
+        self.connect_player("admin", "Admin")
+        actor_socket = self.connect_player("actor", "Actor")
+        self.connect_player("target", "Target")
+        self.configure_started_game()
+        app_module.game_instance.phase = PHASE_ACCUSATION
+        app_module.game_instance.pending_actions = {"actor": "target"}
+        prior_history = [
+            {
+                "key": "events.accusation_made",
+                "variables": {"accuser": "Actor", "target": "Target"},
+            }
+        ]
+        app_module.game_instance.message_history = prior_history.copy()
+        token = app_module.game_instance.begin_phase_resolution(PHASE_ACCUSATION)
+        actor_socket.get_received()
+
+        actor_socket.emit("accuse_player", {"target_id": "target"})
+        received_names = [event["name"] for event in actor_socket.get_received()]
+        app_module.game_instance.finish_phase_resolution(token)
+
+        self.assertEqual(
+            {"actor": "target"},
+            app_module.game_instance.pending_actions,
+        )
+        self.assertEqual(prior_history, app_module.game_instance.message_history)
+        self.assertNotIn("accusation_made", received_names)
+        self.assertNotIn("accusation_update", received_names)
+
     def test_lynch_votes_reject_values_outside_existing_enum(self):
         self.connect_player("admin", "Admin")
         actor_socket = self.connect_player("actor", "Actor")
@@ -385,6 +414,33 @@ class EventValidationTests(unittest.TestCase):
 
         self.assertEqual({}, app_module.game_instance.pending_actions)
         self.assert_validation_error(admin_socket)
+
+    def test_pnp_actions_reject_unhashable_actor_ids_without_exception(self):
+        admin_socket = self.connect_player("admin", "Admin")
+        self.connect_player("actor", "Actor")
+        self.connect_player("target", "Target")
+        self.configure_started_game(mode="pass_and_play")
+        app_module.game_instance.phase = PHASE_NIGHT
+
+        for actor_id in ([], {}):
+            with self.subTest(actor_id=actor_id):
+                app_module.game_instance.pending_actions = {}
+                app_module.game_instance.turn_history = set()
+                admin_socket.get_received()
+
+                try:
+                    admin_socket.emit(
+                        "pnp_submit_action",
+                        {"actor_id": actor_id, "target_id": "target"},
+                    )
+                except TypeError as exc:
+                    self.fail(
+                        f"Malformed actor ID raised instead of emitting an error: {exc}"
+                    )
+
+                self.assertEqual({}, app_module.game_instance.pending_actions)
+                self.assertEqual(set(), app_module.game_instance.turn_history)
+                self.assert_validation_error(admin_socket)
 
 
 if __name__ == "__main__":
