@@ -175,6 +175,13 @@ def get_player_by_sid(sid):
     return None, None
 
 
+def get_connection_state(player_id):
+    player_wrapper = game["players"].get(player_id)
+    if not player_wrapper:
+        return "left"
+    return "connected" if player_wrapper.connected else "disconnected"
+
+
 def get_request_player():
     player_id = session.get("player_id")
     player_wrapper = game["players"].get(player_id)
@@ -398,6 +405,7 @@ def broadcast_player_list():
                 "name": player_wrapper.name,
                 "is_admin": player_wrapper.is_admin,
                 "is_alive": is_alive,
+                "connection_state": get_connection_state(player_id),
             }
         )
     socketio.emit(
@@ -424,7 +432,13 @@ def get_public_game_state():
                 lang = game["players"][p.id].language
 
             all_players_data.append(
-                {"id": p.id, "name": p.name, "is_alive": p.is_alive, "language": lang}
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "is_alive": p.is_alive,
+                    "language": lang,
+                    "connection_state": get_connection_state(p.id),
+                }
             )
 
         accusation_counts = {}
@@ -471,6 +485,9 @@ def get_public_game_state():
             "mode": game_instance.mode,
             "phase": game_instance.phase,
             "phase_end_time": game_instance.phase_end_time,
+            "rematch_eligible_count": sum(
+                1 for p in game_instance.players.values() if p.id in game["players"]
+            ),
             "rematch_vote_count": len(game_instance.rematch_votes),
             "sleep_vote_count": len(game_instance.end_day_votes),
             "timers_disabled": game_instance.timers_disabled,
@@ -969,15 +986,22 @@ def handle_connect(auth=None):
 @socketio.on("disconnect")
 def handle_disconnect():
     player_id, player_wrapper = get_player_by_sid(request.sid)
-    if player_id and player_wrapper:
-        player_wrapper.connected = False
-        if player_wrapper.is_admin:
-            game["admin_sid"] = None
-        player_name = player_wrapper.name
-        log_and_emit(
-            {"key": "events.player_disconnected", "variables": {"name": player_name}},
-            f"==== Player {player_name} disconnected ====",
-        )
+    if not player_id or not player_wrapper or player_wrapper.sid != request.sid:
+        return
+
+    player_wrapper.sid = None
+    player_wrapper.connected = False
+    if player_wrapper.is_admin:
+        game["admin_sid"] = None
+    player_name = player_wrapper.name
+    log_and_emit(
+        {"key": "events.player_disconnected", "variables": {"name": player_name}},
+        f"==== Player {player_name} disconnected ====",
+    )
+    if game["game_state"] == PHASE_LOBBY:
+        broadcast_player_list()
+    else:
+        broadcast_game_state()
 
 
 last_message_time = {}

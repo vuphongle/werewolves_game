@@ -21,6 +21,9 @@
   "ui": {
     "common": {
       "admin_label": "QUẢN TRÒ:",
+      "connection_connected": "Đã kết nối",
+      "connection_disconnected": "Mất kết nối",
+      "connection_left": "Đã rời",
       "leave_room_btn": "Rời phòng",
       "leave_room_confirm": "Rời phòng này? Bạn có thể tham gia lại từ màn hình chính.",
       "leave_room_failed": "Không thể rời phòng. Vui lòng thử lại."

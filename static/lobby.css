@@ -176,6 +176,48 @@ button:disabled {
   border-radius: 5px;
 }
 
+#player-list li.connection-disconnected {
+  border-left: 3px solid var(--highlight-color);
+}
+
+.connection-indicator,
+.player-connection-status {
+  display: inline-block;
+  border-radius: 10px;
+  font-size: 0.75em;
+  font-weight: normal;
+  margin-left: 8px;
+  padding: 2px 6px;
+}
+
+.connection-indicator {
+  vertical-align: middle;
+}
+
+.connection-connected {
+  color: mediumseagreen;
+}
+
+.player-connection-status.connection-connected {
+  background-color: rgba(60, 179, 113, 0.2);
+}
+
+.connection-disconnected {
+  color: lightsalmon;
+}
+
+.player-connection-status.connection-disconnected {
+  background-color: rgba(255, 160, 122, 0.2);
+}
+
+.connection-left {
+  color: lightslategray;
+}
+
+.player-connection-status.connection-left {
+  background-color: rgba(119, 136, 153, 0.2);
+}
+
 .chat-messages {
   height: 150px;
   overflow-y: auto;
