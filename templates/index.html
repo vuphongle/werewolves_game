@@ -1,0 +1,212 @@
+<!-- Version: 4.9.9 -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Werewolves - Join Game</title>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        text-align: center;
+        margin: 0;
+        padding-top: 50px;
+        background-color: black;
+        color: gainsboro;
+        min-height: 100vh;
+      }
+      .container {
+        width: 90%;
+        max-width: 400px;
+        margin: auto;
+        padding: 20px;
+        border: 1px solid #444;
+        border-radius: 12px;
+        background-color: #111;
+      }
+      .error {
+        color: crimson;
+        margin-top: 10px;
+      }
+      input {
+        width: 100%;
+        padding: 12px;
+        margin-top: 10px;
+        border-radius: 5px;
+        border: 1px solid #444;
+        background-color: #222;
+        color: gainsboro;
+        font-size: 1em;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: black;
+        color: white;
+        border: 1px solid #444;
+        text-align: center;
+        transition:
+          transform 0.2s,
+          background-color 0.2s;
+        padding: 12px 24px;
+        margin-top: 20px;
+        border-radius: 8px;
+        font-size: 1em;
+        cursor: pointer;
+      }
+      button:hover {
+        color: white; /* White text pops better against the glow */
+        background-color: #003;
+        border: 1px solid dodgerblue;
+        /* The Cool Purple Glow */
+        box-shadow:
+          0 0 10px dodgerblue,
+          0 0 20px skyblue,
+          0 0 40px skyblue;
+      }
+      h2 {
+        color: #faf;
+        margin: 10px;
+        font-size: 1.5rem;
+        font-weight: bold;
+        /* Initial state */
+        text-shadow:
+          0 0 5px darkviolet,
+          0 0 10px darkviolet,
+          0 0 20px darkviolet,
+          0 0 40px darkviolet;
+        animation: neon-pulse 3s infinite alternate;
+      }
+      @keyframes neon-pulse {
+        0% {
+          text-shadow:
+            0 0 5px darkviolet,
+            0 0 10px darkviolet,
+            0 0 20px darkviolet,
+            0 0 40px darkviolet;
+        }
+        100% {
+          text-shadow:
+            0 0 2px darkviolet,
+            0 0 5px darkviolet,
+            0 0 10px darkviolet,
+            0 0 20px darkviolet;
+          opacity: 0.6; /* Slight dimming for effect */
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2 data-i18n="title">Join Werewolves Game</h2>
+      <form method="POST">
+        <input
+          type="text"
+          name="name"
+          placeholder="Enter Your Name"
+          data-i18n-placeholder="enter_name"
+          required
+        />
+        <input
+          type="text"
+          name="game_code"
+          placeholder="Enter Game Code, default 'W'"
+          data-i18n-placeholder="enter_code"
+          required
+        />
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            align-items: center;
+          "
+        >
+          <button
+            type="submit"
+            style="margin-top: 0; flex-grow: 1; width: auto"
+            data-i18n="join_btn"
+          >
+            Join Lobby
+          </button>
+
+          <select
+            name="language"
+            id="language-select"
+            onchange="changeLanguage(this.value)"
+            style="
+              padding: 12px;
+              width: 25%;
+              border-radius: 8px;
+              background: #222;
+              color: gainsboro;
+              border: 1px solid #444;
+              cursor: pointer;
+              text-align: center;
+            "
+          >
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="de">Deutsch</option>
+            <option value="zh">中文</option>
+          </select>
+        </div>
+      </form>
+      {% if error %}
+      <p class="error">{{ error }}</p>
+      {% endif %}
+    </div>
+    <script>
+      // Simple dictionary for the login screen
+      const loginTranslations = {
+        en: {
+          title: "Join Werewolves Game",
+          enter_name: "Enter Your Name",
+          enter_code: "Enter Game Code, default 'W'",
+          join_btn: "Join Lobby",
+        },
+        es: {
+          title: "Juguemos Hombres Lobos",
+          enter_name: "Ingresa Tu Nombre",
+          enter_code: "Código del Juego, default 'W'",
+          join_btn: "Unirse",
+        },
+        de: {
+          title: "Werwolf beitreten",
+          enter_name: "Dein Name",
+          enter_code: "Spielcode eingeben, default 'W'",
+          join_btn: "Beitreten",
+        },
+        zh: {
+          title: "加入狼人杀游戏",
+          enter_name: "输入你的名字",
+          enter_code: "输入游戏码, default 'W'",
+          join_btn: "加入大厅",
+        },
+      };
+
+      function changeLanguage(lang) {
+        const t = loginTranslations[lang] || loginTranslations["en"];
+
+        // Update Text (Headings, Buttons)
+        document.querySelectorAll("[data-i18n]").forEach((el) => {
+          const key = el.getAttribute("data-i18n");
+          if (t[key]) el.innerText = t[key];
+        });
+
+        // Update Placeholders (Inputs)
+        document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+          const key = el.getAttribute("data-i18n-placeholder");
+          if (t[key]) el.placeholder = t[key];
+        });
+      }
+    </script>
+    <div style="color: #faf; font-size: 12px">
+      source code:
+      <a href="https://github.com/davidchilin/werewolves_game"
+        >https://github.com/davidchilin/werewolves_game</a
+      >
+    </div>
+  </body>
+</html>

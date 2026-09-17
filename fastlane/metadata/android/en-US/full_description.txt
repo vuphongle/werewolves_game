@@ -1,0 +1,19 @@
+<p>werewolves_game will run a werewolves_game site right on your device where other players on the same WIFI can connect (no internet needed). The App will give you the webaddress (http, not https) were the game is running. First person to join the game site (code: "W") will be administrator and control the game settings (which roles to include, timers, etc.)</p>
+
+<p>Best of all, the app acts as the automated game engine, meaning <b>no human Narrator is needed</b>. Everyone gets to play!</p>
+
+<p><b>How to Install and Play:</b><br>
+Download apk, it is only for arm64 v8a devices (see Github for linux x86 and arm v7 versions). Apk will ask if you are sure to install, say Yes (game information and all source code is here in repository and apk is automatically built on Github by github-actions). When running the apk for the first time it will ask if it is okay to run in background while using, say Yes (or else werewolves_game server will not respond when in background). You can choose any port, default is 5000 (recommend &gt;= 5000). Apk server will give you game the webaddress and QR code, for example http://192.168.1.5:5000, type or copy and paste that into a webbrowser. First person to join the game lobby will be administrator, initial password is "w" OR Admin can use Initial Admin Code "BLM". You need at least 4 players (7+ is best) to enable "Start Game" button. Once started, the game secretly assigns roles and automatically cycles through "Night" and "Day" phases, handling all the complex death, voting, and win logic for you. I recommend <i>disable timers</i> the first time playing and have administrator <i>Advance Phase</i> manually. Enjoy!</p>
+
+<p><b>Core Features:</b></p>
+<ul>
+    <li><b>Automated Game Loop:</b> The server handles all phases, night actions, and win checks (Villagers win, Wolves win, or Solo wins).</li>
+    <li><b>📱 Pass-and-Play Mode:</b> Only have one device? Play by passing a single phone around the room with a secure UI that guides players to confirm their identity before viewing their secret role.</li>
+    <li><b>👻 Ghost Mode:</b> Keep eliminated players engaged! Ghosts have a small chance to participate during the accusation and lynch voting phases.</li>
+    <li><b>🎭 24 Unique Roles:</b> Play with complex roles like the Alpha Werewolf, Prostitute, Lawyer, and Serial Killer.</li>
+    <li><b>🏆 Solo Win Conditions:</b> Neutral roles like the Monster, Fool, or Demented Villager can win the game alone, ignoring traditional team allegiances.</li>
+    <li><b>🌍 Multiple Languages:</b> Play a single game with the UI translated into multiple languages simultaneously.</li>
+    <li><b>Robust Admin Controls:</b> The lobby admin can adjust timer durations, kick players, and toggle game rules on the fly.</li>
+</ul>
+
+<p>Gather your friends, connect to the same Wi-Fi, and find out who among you is a werewolf!</p>
