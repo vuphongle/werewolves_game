@@ -20,7 +20,10 @@
   },
   "ui": {
     "common": {
-      "admin_label": "SPIELLEITUNG:"
+      "admin_label": "SPIELLEITUNG:",
+      "leave_room_btn": "Raum verlassen",
+      "leave_room_confirm": "Diesen Raum verlassen? Du kannst über die Startseite wieder beitreten.",
+      "leave_room_failed": "Der Raum konnte nicht verlassen werden. Bitte versuche es erneut."
     },
     "login": {
       "error_rate_limit": "Zu viele Versuche. Bitte warten.",

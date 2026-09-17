@@ -13,6 +13,16 @@
     <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
   </head>
   <body>
+    <div class="game-session-row">
+      <button
+        id="leave-room-btn"
+        class="leave-room-btn"
+        data-i18n="ui.common.leave_room_btn"
+      >
+        Rời phòng
+      </button>
+    </div>
+
     <div id="pnp-hub">
       <h2 data-i18n="ui.game.night_phase_title">Giai đoạn ban đêm 🌙</h2>
       <p data-i18n="ui.game.pnp_instruction">

@@ -864,4 +864,26 @@ function updateRoleSummary() {
   summaryElement.textContent = outputParts.join(", ");
 }
 
+const leaveRoomButton = document.getElementById("leave-room-btn");
+if (leaveRoomButton) {
+  leaveRoomButton.addEventListener("click", async () => {
+    if (!confirm(t("ui.common.leave_room_confirm"))) return;
+
+    leaveRoomButton.disabled = true;
+    try {
+      const response = await fetch("/leave-room", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      window.location.replace("/");
+    } catch (err) {
+      console.error("Failed to leave room:", err);
+      leaveRoomButton.disabled = false;
+      alert(t("ui.common.leave_room_failed"));
+    }
+  });
+}
+
 loadTranslations().finally(() => socket.connect());

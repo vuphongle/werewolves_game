@@ -60,6 +60,13 @@ body {
   border-top: 1px solid var(--border-color);
 }
 
+.leave-room-row {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+  text-align: right;
+}
+
 /* --- 3. Typography & Text Utilities --- */
 h2,
 h3,
@@ -145,6 +152,15 @@ button:disabled {
 }
 #random-roles-btn:hover {
   filter: brightness(1.2);
+}
+
+.leave-room-btn {
+  background-color: firebrick;
+  color: white;
+}
+
+.leave-room-btn:hover:not(:disabled) {
+  background-color: crimson;
 }
 
 /* --- 5. Lists & Chat --- */

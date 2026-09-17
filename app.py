@@ -164,6 +164,7 @@ class PlayerWrapper:
         self.sid = sid
         self.is_admin = False
         self.language = language
+        self.connected: bool = True
 
 
 # --- Helper Functions ---
@@ -196,9 +197,33 @@ def set_current_admin(player_id):
         player_wrapper.is_admin = False
 
     admin = game["players"].get(player_id)
-    game["admin_sid"] = admin.sid if admin else None
+    game["admin_sid"] = admin.sid if admin and admin.connected else None
     if admin:
         admin.is_admin = True
+
+
+def select_admin_successor(excluding_player_id=None):
+    pending_admin_id = None
+    for player_id, player_wrapper in game["players"].items():
+        if player_id == excluding_player_id:
+            continue
+        if player_wrapper.connected:
+            return player_id
+        if pending_admin_id is None:
+            pending_admin_id = player_id
+    return pending_admin_id
+
+
+def transfer_or_clear_admin(departing_player_id):
+    departing_player = game["players"].get(departing_player_id)
+    if not departing_player or not departing_player.is_admin:
+        return None
+
+    successor_id = select_admin_successor(
+        excluding_player_id=departing_player_id
+    )
+    set_current_admin(successor_id)
+    return successor_id
 
 
 def emit_validation_error():
@@ -778,6 +803,47 @@ def favicon():
 def get_roles():
     return jsonify([cls().to_dict() for cls in AVAILABLE_ROLES.values()])
 
+
+@app.route("/leave-room", methods=["POST"])
+def leave_room():
+    global game_instance, game_loop_running
+
+    if not request.is_json or not isinstance(request.get_json(silent=True), dict):
+        return jsonify({"error": "json_required"}), 415
+
+    player_id = session.get("player_id")
+    player_wrapper = game["players"].get(player_id)
+    if not player_id or not player_wrapper:
+        return jsonify({"error": "invalid_session"}), 401
+
+    departing_sid = player_wrapper.sid
+    leaving_lobby = game["game_state"] == PHASE_LOBBY
+
+    transfer_or_clear_admin(player_id)
+    del game["players"][player_id]
+
+    if leaving_lobby:
+        game_instance.remove_player(player_id)
+    elif not game["players"]:
+        game_loop_running = False
+        configured_settings = getattr(game_instance, "settings", {})
+        game_instance = Game("main_game", settings=configured_settings)
+        game["game_state"] = PHASE_LOBBY
+        game["game_over_data"] = None
+
+    for key in ("player_id", "name", "admin_code"):
+        session.pop(key, None)
+
+    if departing_sid:
+        socketio.server.disconnect(departing_sid, namespace="/")
+
+    if game["game_state"] == PHASE_LOBBY:
+        broadcast_player_list()
+    else:
+        broadcast_game_state()
+
+    return jsonify({"redirect": "/"})
+
 # Only disable caching for HTML and JSON (Game Data)
 @app.after_request
 def add_header(response):
@@ -865,6 +931,7 @@ def handle_connect(auth=None):
     # reconnecting player
     else:
         game["players"][player_id].sid = request.sid
+        game["players"][player_id].connected = True
         player_name = game["players"][player_id].name
         log_and_emit(
             {"key": "events.player_reconnected", "variables": {"name": player_name}},
@@ -896,9 +963,12 @@ def handle_connect(auth=None):
 
 @socketio.on("disconnect")
 def handle_disconnect():
-    player_id, _ = get_player_by_sid(request.sid)
-    if player_id and player_id in game["players"]:
-        player_name = game["players"][player_id].name
+    player_id, player_wrapper = get_player_by_sid(request.sid)
+    if player_id and player_wrapper:
+        player_wrapper.connected = False
+        if player_wrapper.is_admin:
+            game["admin_sid"] = None
+        player_name = player_wrapper.name
         log_and_emit(
             {"key": "events.player_disconnected", "variables": {"name": player_name}},
             f"==== Player {player_name} disconnected ====",

@@ -50,6 +50,13 @@ body {
   flex-direction: column;
 }
 
+.game-session-row {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 200;
+}
+
 /* consolidated panel styles */
 .action-area,
 .log-panel,
@@ -195,6 +202,23 @@ h4 {
 button {
   cursor: pointer;
   border: none;
+}
+
+.leave-room-btn {
+  padding: 9px 14px;
+  border: 1px solid salmon;
+  border-radius: 5px;
+  background-color: var(--danger-color);
+  color: white;
+}
+
+.leave-room-btn:hover:not(:disabled) {
+  background-color: firebrick;
+}
+
+.leave-room-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 /* Big Buttons (PnP, Overlays) */

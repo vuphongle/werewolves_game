@@ -20,7 +20,10 @@
   },
   "ui": {
     "common": {
-      "admin_label": "管理员："
+      "admin_label": "管理员：",
+      "leave_room_btn": "离开房间",
+      "leave_room_confirm": "要离开这个房间吗？你可以从首页重新加入。",
+      "leave_room_failed": "无法离开房间，请重试。"
     },
     "login": {
       "error_rate_limit": "尝试次数过多，请稍后再试。",
