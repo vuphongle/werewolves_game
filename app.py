@@ -215,6 +215,34 @@ def require_dict_payload(data):
     return data
 
 
+def get_authorized_actor(data, allow_pnp=False):
+    data = require_dict_payload(data)
+    if data is None:
+        return None
+
+    player_id, player_wrapper = get_request_player()
+    if not player_wrapper:
+        return None
+
+    if game_instance.mode != "pass_and_play":
+        return player_id
+
+    if not allow_pnp or not is_request_admin():
+        return None
+
+    actor_id = data.get("actor_id")
+    if actor_id not in game_instance.players:
+        return None
+    return actor_id
+
+
+def emit_to_player_ids(event, payload, player_ids):
+    for player_id in player_ids:
+        player_wrapper = game["players"].get(player_id)
+        if player_wrapper and player_wrapper.sid:
+            socketio.emit(event, payload, to=player_wrapper.sid)
+
+
 def log_and_emit(message, log_text=None):
     print(log_text if log_text is not None else message)
     socketio.emit("log_message", {"text": message}, to=game["game_code"])
@@ -748,6 +776,10 @@ last_message_time = {}
 
 @socketio.on("send_message")
 def handle_send_message(data):
+    data = require_dict_payload(data)
+    if data is None:
+        return
+
     current_time = time.time()
     last_time = last_message_time.get(request.sid, 0)
 
@@ -801,8 +833,21 @@ def handle_send_message(data):
     active_phases = [PHASE_ACCUSATION, PHASE_LYNCH]
     if phase in active_phases:
         engine_p = game_instance.players.get(pid)
-        if engine_p:
-            channel = "living" if engine_p.is_alive else "ghost"
+        if not engine_p:
+            return
+        channel = "living" if engine_p.is_alive else "ghost"
+        audience_ids = [
+            player.id
+            for player in game_instance.players.values()
+            if player.is_alive == engine_p.is_alive
+        ]
+        emit_to_player_ids(
+            "new_message",
+            {"text": f"<strong>{p.name}:</strong> {msg}", "channel": channel},
+            audience_ids,
+        )
+        return
+
     socketio.emit(
         "new_message",
         {"text": f"<strong>{p.name}:</strong> {msg}", "channel": channel},
@@ -1257,7 +1302,17 @@ def handle_pnp_request(data):
     Called when PnP device clicks a player button.
     Sends that specific player's FULL private state (using generator).
     """
+    data = require_dict_payload(data)
+    if (
+        data is None
+        or game_instance.mode != "pass_and_play"
+        or not is_request_admin()
+    ):
+        return
+
     target_id = data.get("player_id")
+    if target_id not in game_instance.players:
+        return
     payload = generate_player_payload(target_id)
     if payload:
         emit("pnp_state_sync", payload)
@@ -1270,9 +1325,15 @@ def handle_pnp_action(data):
     """
     Unified action handler for Pass-and-Play.
     """
+    if game_instance.mode != "pass_and_play":
+        return
+    actor_id = get_authorized_actor(data, allow_pnp=True)
+    if not actor_id:
+        return
+
     print(f"handle_pnp_action")
     result = game_instance.receive_night_action(
-        data.get("actor_id"), data.get("target_id")
+        actor_id, data.get("target_id")
     )
     if result == "RESOLVED":
         socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
@@ -1287,12 +1348,11 @@ def handle_client_ready_for_game():
     """
     Syncs the game state for the specific client requesting it.
     """
-    player_id = session.get("player_id")
-    if not player_id or player_id not in game["players"]:
+    player_id, player_wrapper = get_request_player()
+    if not player_wrapper:
         return
 
     # OPTIMIZATION: Only update the requester, not the whole server
-    player_wrapper = game["players"][player_id]
     payload = generate_player_payload(player_id, player_wrapper)
 
     if payload:
@@ -1301,10 +1361,9 @@ def handle_client_ready_for_game():
 
 @socketio.on("hero_choice")
 def handle_hero_choice(data):
-    player_id = session.get("player_id")
-    # PnP Override
-    if game_instance.mode == "pass_and_play" and "actor_id" in data:
-        player_id = data["actor_id"]
+    player_id = get_authorized_actor(data, allow_pnp=True)
+    if not player_id:
+        return
     target_id = data.get("target_id")
     if target_id == "Nobody":
         result = game_instance.receive_night_action(player_id, "Nobody")
@@ -1349,9 +1408,9 @@ def handle_hero_choice(data):
 
 @socketio.on("accuse_player")
 def handle_accuse_player(data):
-    pid = session.get("player_id")
-    if game_instance.mode == "pass_and_play" and "actor_id" in data:
-        pid = data["actor_id"]
+    pid = get_authorized_actor(data, allow_pnp=True)
+    if not pid:
+        return
     tid = data.get("target_id")
     all_voted = game_instance.process_accusation(pid, tid)
     # 2. Check what was recorded
@@ -1396,9 +1455,9 @@ def handle_accuse_player(data):
 
 @socketio.on("cast_lynch_vote")
 def handle_cast_lynch_vote(data):
-    pid = session.get("player_id")
-    if game_instance.mode == "pass_and_play" and "actor_id" in data:
-        pid = data["actor_id"]
+    pid = get_authorized_actor(data, allow_pnp=True)
+    if not pid:
+        return
     all_voted = game_instance.cast_lynch_vote(pid, data.get("vote"))
     if all_voted:
         resolve_lynch()
@@ -1502,10 +1561,11 @@ def resolve_night():
 
 @socketio.on("vote_to_end_day")
 def handle_vote_to_end_day(data=None):
-    pid = session.get("player_id")
-    # PnP Override
-    if data and game_instance.mode == "pass_and_play" and "actor_id" in data:
-        pid = data["actor_id"]
+    if data is None:
+        data = {}
+    pid = get_authorized_actor(data, allow_pnp=True)
+    if not pid:
+        return
 
     # 1. Get the Engine Player Object
     engine_player = game_instance.players.get(pid)

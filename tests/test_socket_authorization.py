@@ -5,7 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import app as app_module
-from game_engine import Game, PHASE_LOBBY, PHASE_NIGHT
+from game_engine import Game, PHASE_ACCUSATION, PHASE_LOBBY, PHASE_LYNCH, PHASE_NIGHT
+from roles import Villager
 
 
 class SocketAuthorizationTests(unittest.TestCase):
@@ -57,6 +58,19 @@ class SocketAuthorizationTests(unittest.TestCase):
         self.socket_clients.append(socket_client)
         socket_client.get_received()
         return flask_client, socket_client
+
+    def configure_started_game(self, mode):
+        app_module.game_instance = Game(
+            "authorization_test",
+            settings={"mode": mode},
+        )
+        for player_id, wrapper in app_module.game["players"].items():
+            app_module.game_instance.add_player(player_id, wrapper.name)
+            engine_player = app_module.game_instance.players[player_id]
+            engine_player.role = Villager()
+            engine_player.role.on_assign(engine_player)
+        app_module.game["game_state"] = "started"
+        app_module.set_current_admin("admin")
 
     def test_socket_without_complete_identity_is_rejected(self):
         cases = (
@@ -131,6 +145,107 @@ class SocketAuthorizationTests(unittest.TestCase):
             player_socket.emit("admin_next_phase", {"is_pnp": True})
 
         resolve_night.assert_not_called()
+
+    def test_non_admin_cannot_select_pass_and_play_actor(self):
+        _, admin_socket = self.connect_player("admin", "Admin")
+        _, player_socket = self.connect_player("player", "Player")
+        self.configure_started_game("pass_and_play")
+        admin_socket.get_received()
+        player_socket.get_received()
+
+        action_cases = (
+            (
+                "pnp_submit_action",
+                {"actor_id": "admin", "target_id": "player"},
+                PHASE_NIGHT,
+                "pending_actions",
+            ),
+            (
+                "hero_choice",
+                {"actor_id": "admin", "target_id": "player"},
+                PHASE_NIGHT,
+                "pending_actions",
+            ),
+            (
+                "accuse_player",
+                {"actor_id": "admin", "target_id": "player"},
+                PHASE_ACCUSATION,
+                "pending_actions",
+            ),
+            (
+                "cast_lynch_vote",
+                {"actor_id": "admin", "vote": "yes"},
+                PHASE_LYNCH,
+                "pending_actions",
+            ),
+            (
+                "vote_to_end_day",
+                {"actor_id": "admin"},
+                PHASE_ACCUSATION,
+                "end_day_votes",
+            ),
+        )
+
+        for event_name, payload, phase, state_name in action_cases:
+            with self.subTest(event=event_name):
+                app_module.game_instance.phase = phase
+                app_module.game_instance.pending_actions = {}
+                app_module.game_instance.turn_history = set()
+                app_module.game_instance.end_day_votes = set()
+
+                player_socket.emit(event_name, payload)
+
+                self.assertFalse(getattr(app_module.game_instance, state_name))
+                player_socket.get_received()
+
+    def test_standard_actions_ignore_supplied_actor_id(self):
+        _, admin_socket = self.connect_player("admin", "Admin")
+        _, player_socket = self.connect_player("player", "Player")
+        self.configure_started_game("standard")
+        app_module.game_instance.timers_disabled = True
+        admin_socket.get_received()
+        player_socket.get_received()
+
+        action_cases = (
+            (
+                "hero_choice",
+                {"actor_id": "admin", "target_id": "admin"},
+                PHASE_NIGHT,
+                "pending_actions",
+            ),
+            (
+                "accuse_player",
+                {"actor_id": "admin", "target_id": "admin"},
+                PHASE_ACCUSATION,
+                "pending_actions",
+            ),
+            (
+                "cast_lynch_vote",
+                {"actor_id": "admin", "vote": "yes"},
+                PHASE_LYNCH,
+                "pending_actions",
+            ),
+            (
+                "vote_to_end_day",
+                {"actor_id": "admin"},
+                PHASE_ACCUSATION,
+                "end_day_votes",
+            ),
+        )
+
+        for event_name, payload, phase, state_name in action_cases:
+            with self.subTest(event=event_name):
+                app_module.game_instance.phase = phase
+                app_module.game_instance.pending_actions = {}
+                app_module.game_instance.turn_history = set()
+                app_module.game_instance.end_day_votes = set()
+
+                player_socket.emit(event_name, payload)
+
+                state = getattr(app_module.game_instance, state_name)
+                self.assertIn("player", state)
+                self.assertNotIn("admin", state)
+                player_socket.get_received()
 
     def test_pnp_add_player_and_transfer_keep_one_canonical_admin(self):
         _, first_socket = self.connect_player("first", "First")
