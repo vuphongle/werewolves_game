@@ -55,6 +55,8 @@ class Game:
         self.ghost_mode = self.settings.get("ghost_mode", False)
         self.pg_mode = self.settings.get("pg_mode", False)
         self.lock = RLock()
+        self._phase_resolution_phase = None
+        self._phase_resolution_token = None
         self.message_history = []
 
         self.phase = PHASE_LOBBY
@@ -236,6 +238,36 @@ class Game:
 
         self.phase_end_time = time.time() + duration
 
+    def begin_phase_resolution(self, expected_phase):
+        with self.lock:
+            if (
+                self.phase != expected_phase
+                or self._phase_resolution_token is not None
+            ):
+                return None
+
+            token = object()
+            self._phase_resolution_phase = expected_phase
+            self._phase_resolution_token = token
+            return token
+
+    def finish_phase_resolution(self, token):
+        with self.lock:
+            if self._phase_resolution_token is not token:
+                return
+
+            self._phase_resolution_phase = None
+            self._phase_resolution_token = None
+
+    def is_phase_resolving(self, expected_phase=None):
+        with self.lock:
+            if self._phase_resolution_token is None:
+                return False
+            return (
+                expected_phase is None
+                or self._phase_resolution_phase == expected_phase
+            )
+
     def tick(self):
         """
         Called every second by the main server loop.
@@ -282,7 +314,11 @@ class Game:
         Note: target_id can be a string ID or a Dict for complex actions (Witch).
         """
         with self.lock:
-            if self.phase != PHASE_NIGHT or player_id not in self.players:
+            if (
+                self.phase != PHASE_NIGHT
+                or self.is_phase_resolving(PHASE_NIGHT)
+                or player_id not in self.players
+            ):
                 return "IGNORED"
 
             if player_id in self.pending_actions:
@@ -660,7 +696,9 @@ class Game:
     def process_accusation(self, accuser_id, target_id):
         """Returns True if this accusation triggered a majority/all-voted condition (optional optimization)."""
         with self.lock:
-            if self.phase != PHASE_ACCUSATION:
+            if self.phase != PHASE_ACCUSATION or self.is_phase_resolving(
+                PHASE_ACCUSATION
+            ):
                 return False
 
             player = self.players.get(accuser_id)
@@ -767,7 +805,7 @@ class Game:
     def cast_lynch_vote(self, voter_id, vote):
         """Returns True if all players have voted."""
         with self.lock:
-            if self.phase != PHASE_LYNCH:
+            if self.phase != PHASE_LYNCH or self.is_phase_resolving(PHASE_LYNCH):
                 return False
             if vote not in ["yes", "no"]:
                 return False

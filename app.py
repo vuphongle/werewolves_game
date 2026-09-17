@@ -215,6 +215,117 @@ def require_dict_payload(data):
     return data
 
 
+VALID_GAME_MODES = {"standard", "pass_and_play"}
+BOOLEAN_SETTING_KEYS = {"ghost_mode", "pg_mode", "solo_win_continues"}
+TIMER_SETTING_KEYS = {"night", "accusation", "lynch_vote"}
+KNOWN_ROLE_KEYS = {role_cls.name_key for role_cls in AVAILABLE_ROLES.values()}
+
+
+def validate_role_keys(roles):
+    if not isinstance(roles, list):
+        return None
+    if any(
+        not isinstance(role, str) or role not in KNOWN_ROLE_KEYS for role in roles
+    ):
+        return None
+    return roles.copy()
+
+
+def parse_timer_duration(value):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        duration = value
+    elif isinstance(value, str):
+        try:
+            duration = int(value)
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if not 10 <= duration <= 3600:
+        return None
+    return duration
+
+
+def validate_timer_settings(timers):
+    if not isinstance(timers, dict):
+        return None
+
+    validated = timers.copy()
+    if "timers_disabled" in timers and not isinstance(
+        timers["timers_disabled"], bool
+    ):
+        return None
+
+    for key in TIMER_SETTING_KEYS:
+        if key not in timers:
+            continue
+        duration = parse_timer_duration(timers[key])
+        if duration is None:
+            return None
+        validated[key] = duration
+    return validated
+
+
+def validate_game_settings(settings):
+    if not isinstance(settings, dict):
+        return None
+
+    validated = settings.copy()
+    if "mode" in settings:
+        mode = settings["mode"]
+        if not isinstance(mode, str) or mode not in VALID_GAME_MODES:
+            return None
+    for key in BOOLEAN_SETTING_KEYS:
+        if key in settings and not isinstance(settings[key], bool):
+            return None
+    if "timers" in settings:
+        timers = validate_timer_settings(settings["timers"])
+        if timers is None:
+            return None
+        validated["timers"] = timers
+    return validated
+
+
+def is_valid_action_target(target_id, allow_nobody=False, allow_empty=False):
+    if allow_empty and target_id == "":
+        return True
+    if allow_nobody and target_id == "Nobody":
+        return True
+    return isinstance(target_id, str) and target_id in game_instance.players
+
+
+def validate_action_payload(data, allow_nobody=False, allow_empty=False):
+    if "target_id" not in data or not is_valid_action_target(
+        data["target_id"],
+        allow_nobody=allow_nobody,
+        allow_empty=allow_empty,
+    ):
+        return False
+
+    if "metadata" not in data:
+        return True
+    metadata = data["metadata"]
+    if not isinstance(metadata, dict):
+        return False
+    if "target_id2" in metadata and not is_valid_action_target(
+        metadata["target_id2"],
+        allow_empty=True,
+    ):
+        return False
+    if "potion" in metadata:
+        potion = metadata["potion"]
+        if not isinstance(potion, str) or potion not in {
+            "heal",
+            "poison",
+            "none",
+        }:
+            return False
+    return True
+
+
 def get_authorized_actor(data, allow_pnp=False):
     data = require_dict_payload(data)
     if data is None:
@@ -483,6 +594,16 @@ def background_game_loop():
 
 
 def perform_tally_accusations():
+    token = game_instance.begin_phase_resolution(PHASE_ACCUSATION)
+    if token is None:
+        return
+    try:
+        return _perform_tally_accusations()
+    finally:
+        game_instance.finish_phase_resolution(token)
+
+
+def _perform_tally_accusations():
     outcome = game_instance.tally_accusations()
     result_type = outcome["result"]
     if result_type == "trial":
@@ -674,8 +795,14 @@ def add_header(response):
 def handle_admin_update_roles(data):
     if not is_request_admin():
         return
+    data = require_dict_payload(data)
+    if data is None:
+        return
+    roles = validate_role_keys(data.get("roles"))
+    if roles is None:
+        return emit_validation_error()
     # 1. Update Server State
-    lobby_state["selected_roles"] = data.get("roles", [])
+    lobby_state["selected_roles"] = roles
 
     # 2. Broadcast to ALL clients so their checkboxes update
     emit("sync_roles", {"roles": lobby_state["selected_roles"]}, to=game["game_code"])
@@ -685,15 +812,21 @@ def handle_admin_update_roles(data):
 def handle_admin_update_settings(data):
     if not is_request_admin():
         return
+    data = require_dict_payload(data)
+    if data is None:
+        return
+    settings = validate_game_settings(data)
+    if settings is None:
+        return emit_validation_error()
 
     # Update lobby settings state
     if "settings" not in lobby_state:
         lobby_state["settings"] = {}
-    for k, v in data.items():
+    for k, v in settings.items():
         lobby_state["settings"][k] = v
 
-    if "pg_mode" in data:
-        game_instance.pg_mode = data["pg_mode"]
+    if "pg_mode" in settings:
+        game_instance.pg_mode = settings["pg_mode"]
 
     # Broadcast updates to all clients in lobby
     emit("sync_settings", lobby_state["settings"], to=game["game_code"])
@@ -904,15 +1037,23 @@ def handle_admin_transfer(data):
 def handle_admin_set_timers(data):
     if not is_request_admin():
         return
+    data = require_dict_payload(data)
+    if data is None:
+        return
+    timer_settings = validate_timer_settings(data)
+    if timer_settings is None:
+        return emit_validation_error()
 
     if "settings" not in lobby_state:
         lobby_state["settings"] = {}
 
     # Save disabled state if present
-    if "timers_disabled" in data:
+    if "timers_disabled" in timer_settings:
         if "timers" not in lobby_state["settings"]:
             lobby_state["settings"]["timers"] = {}
-        lobby_state["settings"]["timers"]["timers_disabled"] = data["timers_disabled"]
+        lobby_state["settings"]["timers"]["timers_disabled"] = timer_settings[
+            "timers_disabled"
+        ]
 
     # Save durations if present
     key_map = {
@@ -923,17 +1064,19 @@ def handle_admin_set_timers(data):
 
     # Check if we are updating specific durations (from the 'Set Timers' button)
     # If so, save them to lobby_state too
-    has_duration_update = any(k in data for k in key_map.keys())
+    has_duration_update = any(k in timer_settings for k in key_map.keys())
     if has_duration_update:
         if "timers" not in lobby_state["settings"]:
             lobby_state["settings"]["timers"] = {}
 
         for frontend_key in key_map.keys():
-            if frontend_key in data:
-                lobby_state["settings"]["timers"][frontend_key] = data[frontend_key]
+            if frontend_key in timer_settings:
+                lobby_state["settings"]["timers"][frontend_key] = timer_settings[
+                    frontend_key
+                ]
 
-    if "timers_disabled" in data:
-        game_instance.timers_disabled = data["timers_disabled"]
+    if "timers_disabled" in timer_settings:
+        game_instance.timers_disabled = timer_settings["timers_disabled"]
         if game_instance.timers_disabled:
             log_and_emit(
                 {"key": "events.timers_paused", "variables": {}},
@@ -956,15 +1099,10 @@ def handle_admin_set_timers(data):
             "lynch_vote": PHASE_LYNCH,
         }
         for frontend_key, engine_phase_key in key_map.items():
-            val = data.get(frontend_key)
-            if val:
-                try:
-                    new_duration = int(val)
-                    final_duration = max(10, new_duration)
-                    game_instance.timer_durations[engine_phase_key] = final_duration
-                    updated_timers[frontend_key] = final_duration
-                except ValueError:
-                    pass
+            if frontend_key in timer_settings:
+                duration = timer_settings[frontend_key]
+                game_instance.timer_durations[engine_phase_key] = duration
+                updated_timers[frontend_key] = duration
         if updated_timers:
             emit("admin_timers_updated", {"timers": updated_timers})
             log_and_emit(
@@ -999,7 +1137,6 @@ def handle_start_game(data):
     data = require_dict_payload(data)
     if data is None:
         return
-    settings = data.get("settings", {})
 
     if not is_request_admin():
         return emit(
@@ -1021,6 +1158,10 @@ def handle_start_game(data):
             "error",
             {"message": {"key": "ui.errors.game_in_progress", "variables": {}}},
         )
+    settings = validate_game_settings(data.get("settings", {}))
+    roles = validate_role_keys(data.get("roles"))
+    if settings is None or roles is None:
+        return emit_validation_error()
     log_and_emit(
         {"key": "events.game_started", "variables": {}},
         "===> Admin started game. Assigning roles.",
@@ -1031,7 +1172,7 @@ def handle_start_game(data):
         socketio.start_background_task(background_game_loop)
     # configure engine
     lobby_state["settings"] = settings
-    lobby_state["selected_roles"] = data.get("roles", [])
+    lobby_state["selected_roles"] = roles
     game_instance.settings = settings
     game_instance.ghost_mode = settings.get("ghost_mode", False)
     game_instance.mode = settings.get("mode", "standard")
@@ -1057,7 +1198,7 @@ def handle_start_game(data):
         {"key": "events.game_started_mode", "variables": {"mode": game_instance.mode}},
         f"===> Game Started! Mode: {game_instance.mode}",
     )
-    game_instance.assign_roles(data.get("roles", []))
+    game_instance.assign_roles(roles)
     game["game_state"] = "started"
     socketio.emit("game_started", to=game["game_code"])
     game_instance.set_phase(PHASE_NIGHT)
@@ -1082,6 +1223,16 @@ def handle_admin_next_phase(data=None):
         resolve_lynch()
 
 def resolve_lynch():
+    token = game_instance.begin_phase_resolution(PHASE_LYNCH)
+    if token is None:
+        return
+    try:
+        return _resolve_lynch()
+    finally:
+        game_instance.finish_phase_resolution(token)
+
+
+def _resolve_lynch():
     result = game_instance.resolve_lynch_vote()
 
     # 1. Handle Announcements (if any)
@@ -1330,6 +1481,8 @@ def handle_pnp_action(data):
     actor_id = get_authorized_actor(data, allow_pnp=True)
     if not actor_id:
         return
+    if not validate_action_payload(data, allow_nobody=True, allow_empty=True):
+        return emit_validation_error()
 
     print(f"handle_pnp_action")
     result = game_instance.receive_night_action(
@@ -1364,6 +1517,8 @@ def handle_hero_choice(data):
     player_id = get_authorized_actor(data, allow_pnp=True)
     if not player_id:
         return
+    if not validate_action_payload(data, allow_nobody=True, allow_empty=True):
+        return emit_validation_error()
     target_id = data.get("target_id")
     if target_id == "Nobody":
         result = game_instance.receive_night_action(player_id, "Nobody")
@@ -1411,6 +1566,8 @@ def handle_accuse_player(data):
     pid = get_authorized_actor(data, allow_pnp=True)
     if not pid:
         return
+    if not validate_action_payload(data, allow_empty=True):
+        return emit_validation_error()
     tid = data.get("target_id")
     all_voted = game_instance.process_accusation(pid, tid)
     # 2. Check what was recorded
@@ -1458,7 +1615,10 @@ def handle_cast_lynch_vote(data):
     pid = get_authorized_actor(data, allow_pnp=True)
     if not pid:
         return
-    all_voted = game_instance.cast_lynch_vote(pid, data.get("vote"))
+    vote = data.get("vote")
+    if not isinstance(vote, str) or vote not in {"yes", "no"}:
+        return emit_validation_error()
+    all_voted = game_instance.cast_lynch_vote(pid, vote)
     if all_voted:
         resolve_lynch()
     elif game_instance.mode == "pass_and_play":
@@ -1470,6 +1630,16 @@ def handle_cast_lynch_vote(data):
 
 
 def resolve_night():
+    token = game_instance.begin_phase_resolution(PHASE_NIGHT)
+    if token is None:
+        return
+    try:
+        return _resolve_night()
+    finally:
+        game_instance.finish_phase_resolution(token)
+
+
+def _resolve_night():
     events = game_instance.resolve_night_deaths()
 
     # Notify Lovers
