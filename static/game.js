@@ -218,11 +218,13 @@ const els = {
   gameOverChatSendBtn: document.getElementById("game-over-chat-send-btn"),
   gameOverChatInput: document.getElementById("game-over-chat-input"),
   adminChatToggle: document.getElementById("admin-chat-toggle-btn"),
+  adminCancelGame: document.getElementById("admin-cancel-game-btn"),
   // PnP
   pnpHub: document.getElementById("pnp-hub"),
   pnpGrid: document.getElementById("pnp-grid"),
   pnpOverlay: document.getElementById("pnp-overlay"),
   pnpReturnBtn: document.getElementById("pnp-return-btn"),
+  pnpCancelGame: document.getElementById("pnp-cancel-game-btn"),
   gameContainer: document.querySelector(".game-container"),
 };
 
@@ -261,6 +263,17 @@ function updateAdminControls() {
     }
   } else {
     els.adminControls.style.display = "none";
+  }
+
+  if (els.pnpCancelGame) {
+    els.pnpCancelGame.classList.toggle("pnp-hidden", !(isAdmin && isPnP));
+  }
+}
+
+function confirmCancelGame() {
+  if (!isAdmin) return;
+  if (window.confirm(t({ key: "ui.game.confirm_cancel_game" }))) {
+    socket.emit("admin_cancel_game");
   }
 }
 
@@ -1594,5 +1607,8 @@ if (adminPauseBtn)
   adminPauseBtn.addEventListener("click", () =>
     socket.emit("admin_set_timers", { timers_disabled: !timersDisabled }),
   );
+[els.adminCancelGame, els.pnpCancelGame].forEach((button) => {
+  if (button) button.addEventListener("click", confirmCancelGame);
+});
 
 loadTranslations().finally(() => socket.connect());

@@ -356,6 +356,13 @@ socket.on("sync_settings", (settings) => {
     ghostCb.checked = !!settings.ghost_mode;
   }
 
+  const revealRolesCheckbox = document.getElementById(
+    "reveal-roles-on-death-checkbox",
+  );
+  if (revealRolesCheckbox) {
+    revealRolesCheckbox.checked = settings.reveal_roles_on_death === true;
+  }
+
   const pgCheckbox = document.getElementById("mode-pg");
   if (pgCheckbox) {
     pgCheckbox.checked = settings.pg_mode || false;
@@ -518,6 +525,12 @@ document.getElementById("start-game-btn").onclick = () => {
   // Handle Ghost Mode (Safe check in case element is missing)
   const ghostCheckbox = document.getElementById("ghost-mode-checkbox");
   const ghostMode = ghostCheckbox ? ghostCheckbox.checked : false;
+  const revealRolesCheckbox = document.getElementById(
+    "reveal-roles-on-death-checkbox",
+  );
+  const revealRolesOnDeath = revealRolesCheckbox
+    ? revealRolesCheckbox.checked
+    : false;
 
   // C. Get Timers
   const timers = {
@@ -536,6 +549,7 @@ document.getElementById("start-game-btn").onclick = () => {
       mode: passAndPlay ? "pass_and_play" : "standard",
       solo_win_continues: soloContinues,
       ghost_mode: ghostMode,
+      reveal_roles_on_death: revealRolesOnDeath,
       pg_mode: pgMode,
       timers: timers,
     },
@@ -693,6 +707,12 @@ if (settingsContainer) {
       case "ghost-mode-checkbox":
         socket.emit("admin_update_settings", {
           ghost_mode: target.checked,
+        });
+        break;
+
+      case "reveal-roles-on-death-checkbox":
+        socket.emit("admin_update_settings", {
+          reveal_roles_on_death: target.checked,
         });
         break;
 

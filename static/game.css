@@ -323,6 +323,14 @@ button {
   display: block;
   background-color: slategray;
 }
+.cancel-game-btn,
+#admin-controls-ingame .cancel-game-btn {
+  background-color: var(--danger-color) !important;
+}
+.cancel-game-btn:hover,
+#admin-controls-ingame .cancel-game-btn:hover {
+  background-color: red !important;
+}
 .btn-active {
   background-color: var(--warning-color) !important;
 }
