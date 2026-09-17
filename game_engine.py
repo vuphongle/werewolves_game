@@ -55,6 +55,8 @@ class Game:
         self.ghost_mode = self.settings.get("ghost_mode", False)
         self.pg_mode = self.settings.get("pg_mode", False)
         self.lock = RLock()
+        self._phase_resolution_phase = None
+        self._phase_resolution_token = None
         self.message_history = []
 
         self.phase = PHASE_LOBBY
@@ -203,38 +205,71 @@ class Game:
         return player_id in self.end_day_votes
 
     def set_phase(self, new_phase):
-        self.phase = new_phase
-        self.phase_start_time = time.time()
-        self.current_timer_id += 1
+        with self.lock:
+            self._phase_resolution_phase = None
+            self._phase_resolution_token = None
+            self.phase = new_phase
+            self.phase_start_time = time.time()
+            self.current_timer_id += 1
 
-        duration = self.timer_durations.get(new_phase, 0)
-        self.phase_end_time = time.time() + duration
+            duration = self.timer_durations.get(new_phase, 0)
+            self.phase_end_time = time.time() + duration
 
-        print(f"Phase changed to: {self.phase}, duration: {duration}s")
-        # Trigger cleanup or specific phase logic here
-        if new_phase == PHASE_NIGHT:
-            self.accusation_restarts = 0
-            self.night_count += 1
-            self.pending_actions = {}
-            self.turn_history = set()  # Reset tracker
-            for player_obj in self.players.values():
-                player_obj.reset_night_status()
-                # trigger night hoooks
-                if player_obj.role:
-                    player_obj.role.on_night_start(
-                        player_obj, {"players": list(self.players.values())}
-                    )
-        elif new_phase == PHASE_ACCUSATION:
-            for player_obj in self.players.values():
-                player_obj.visiting_id = None
+            print(f"Phase changed to: {self.phase}, duration: {duration}s")
+            # Trigger cleanup or specific phase logic here
+            if new_phase == PHASE_NIGHT:
+                self.accusation_restarts = 0
+                self.night_count += 1
+                self.pending_actions = {}
+                self.turn_history = set()  # Reset tracker
+                for player_obj in self.players.values():
+                    player_obj.reset_night_status()
+                    # trigger night hoooks
+                    if player_obj.role:
+                        player_obj.role.on_night_start(
+                            player_obj, {"players": list(self.players.values())}
+                        )
+            elif new_phase == PHASE_ACCUSATION:
+                for player_obj in self.players.values():
+                    player_obj.visiting_id = None
 
-            self.pending_actions = {}
-            self.end_day_votes = set()
-            self.lynch_target_id = None
-        elif new_phase == PHASE_LYNCH:
-            self.pending_actions = {}
+                self.pending_actions = {}
+                self.end_day_votes = set()
+                self.lynch_target_id = None
+            elif new_phase == PHASE_LYNCH:
+                self.pending_actions = {}
 
-        self.phase_end_time = time.time() + duration
+            self.phase_end_time = time.time() + duration
+
+    def begin_phase_resolution(self, expected_phase):
+        with self.lock:
+            if (
+                self.phase != expected_phase
+                or self._phase_resolution_token is not None
+            ):
+                return None
+
+            token = object()
+            self._phase_resolution_phase = expected_phase
+            self._phase_resolution_token = token
+            return token
+
+    def finish_phase_resolution(self, token):
+        with self.lock:
+            if self._phase_resolution_token is not token:
+                return
+
+            self._phase_resolution_phase = None
+            self._phase_resolution_token = None
+
+    def is_phase_resolving(self, expected_phase=None):
+        with self.lock:
+            if self._phase_resolution_token is None:
+                return False
+            return (
+                expected_phase is None
+                or self._phase_resolution_phase == expected_phase
+            )
 
     def tick(self):
         """
@@ -282,7 +317,11 @@ class Game:
         Note: target_id can be a string ID or a Dict for complex actions (Witch).
         """
         with self.lock:
-            if self.phase != PHASE_NIGHT or player_id not in self.players:
+            if (
+                self.phase != PHASE_NIGHT
+                or self.is_phase_resolving(PHASE_NIGHT)
+                or player_id not in self.players
+            ):
                 return "IGNORED"
 
             if player_id in self.pending_actions:
@@ -658,28 +697,30 @@ class Game:
     # --- DAY LOGIC (Accusations & Voting) ---
 
     def process_accusation(self, accuser_id, target_id):
-        """Returns True if this accusation triggered a majority/all-voted condition (optional optimization)."""
+        """Returns IGNORED or whether all living players have voted."""
         with self.lock:
-            if self.phase != PHASE_ACCUSATION:
-                return False
+            if self.phase != PHASE_ACCUSATION or self.is_phase_resolving(
+                PHASE_ACCUSATION
+            ):
+                return "IGNORED"
 
             player = self.players.get(accuser_id)
             if not player:
-                return False
+                return "IGNORED"
+            if accuser_id in self.pending_actions:
+                return "IGNORED"
 
             # GHOST LOGIC
             vote_value = target_id
             if not player.is_alive:
                 if not self.is_ghost_mode_active():
-                    return False  # Dead cannot vote if ghost mode inactive
+                    return "IGNORED"  # Dead cannot vote if ghost mode inactive
 
                 # 25% Chance check
                 if random.random() > 0.25:
                     vote_value = "Ghost_Fail"
 
-            # Record the vote (if not already voted)
-            if accuser_id not in self.pending_actions:
-                self.pending_actions[accuser_id] = vote_value
+            self.pending_actions[accuser_id] = vote_value
 
             # CHECK: Have all LIVING players voted?
             living_voters = [
@@ -767,7 +808,7 @@ class Game:
     def cast_lynch_vote(self, voter_id, vote):
         """Returns True if all players have voted."""
         with self.lock:
-            if self.phase != PHASE_LYNCH:
+            if self.phase != PHASE_LYNCH or self.is_phase_resolving(PHASE_LYNCH):
                 return False
             if vote not in ["yes", "no"]:
                 return False

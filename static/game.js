@@ -227,6 +227,20 @@ const els = {
 };
 
 // --- Helper Functions ---
+function setPageConnectionIndicator(connectionState) {
+  const sessionRow = document.querySelector(".game-session-row");
+  if (!sessionRow) return;
+
+  let indicator = document.getElementById("connection-indicator");
+  if (!indicator) {
+    indicator = document.createElement("span");
+    indicator.id = "connection-indicator";
+    sessionRow.prepend(indicator);
+  }
+  indicator.className = `connection-indicator connection-${connectionState}`;
+  indicator.textContent = t({ key: `ui.common.connection_${connectionState}` });
+}
+
 function logMessage(message, isPrivate = false) {
   let text = t(message);
 
@@ -1146,8 +1160,11 @@ function showGameOverScreen(data, rematchInfo = {}) {
 
 // --- Socket Events ---
 socket.on("connect", () => {
+  setPageConnectionIndicator("connected");
   socket.emit("client_ready_for_game");
 });
+
+socket.on("disconnect", () => setPageConnectionIndicator("disconnected"));
 
 socket.on("force_phase_update", () => {
   // Signal that the Ghost's action was processed but failed (RNG)
@@ -1217,7 +1234,7 @@ socket.on("game_state_sync", (data) => {
     showGameOverScreen(data.game_over_data, {
       hasVoted: data.my_rematch_vote,
       count: data.rematch_vote_count,
-      total: data.all_players.length,
+      total: data.rematch_eligible_count,
     });
     setChatMode(data.admin_only_chat, data.phase);
     return;
@@ -1512,13 +1529,15 @@ function updatePlayerListView(accusationCounts = {}) {
   const livingIds = livingPlayers.map((p) => p.id);
   allPlayers.forEach((p) => {
     const li = document.createElement("li");
+    const connectionState = p.connection_state;
+    li.classList.add(`connection-${connectionState}`);
 
     const isMe = p.id === myPlayerId;
 
     let youTag = isMe ? ` ${t({ key: "ui.lobby.you_suffix" })}` : "";
     let nameDisplay = `${p.name}${youTag}`;
 
-    let html = `<span>${nameDisplay}</span>`;
+    let html = `<span class="player-identity"><span class="player-name">${nameDisplay}</span><span class="player-connection-status connection-${connectionState}">${t({ key: `ui.common.connection_${connectionState}` })}</span></span>`;
 
     if (accusationCounts[p.id]) {
       html += `<span class="accusation-count">${accusationCounts[p.id]}</span>`;
@@ -1529,7 +1548,7 @@ function updatePlayerListView(accusationCounts = {}) {
     if (!livingIds.includes(p.id)) {
       li.classList.add("dead");
       li.style.opacity = "0.5"; // Fade out dead players
-      li.firstChild.innerHTML = `💀 <s>${nameDisplay}</s>`;
+      li.querySelector(".player-name").innerHTML = `💀 <s>${nameDisplay}</s>`;
     }
     if (isMe) {
       li.style.fontWeight = "bold";
@@ -1538,7 +1557,7 @@ function updatePlayerListView(accusationCounts = {}) {
       li.style.backgroundColor = "rgba(187, 134, 252, 0.1)";
     }
 
-    if (isAdmin && !isMe) {
+    if (isAdmin && !isMe && connectionState === "connected") {
       const adminBtn = document.createElement("span");
       adminBtn.innerText = "🪄";
       adminBtn.style.cursor = "pointer";
@@ -1594,5 +1613,27 @@ if (adminPauseBtn)
   adminPauseBtn.addEventListener("click", () =>
     socket.emit("admin_set_timers", { timers_disabled: !timersDisabled }),
   );
+
+const leaveRoomButton = document.getElementById("leave-room-btn");
+if (leaveRoomButton) {
+  leaveRoomButton.addEventListener("click", async () => {
+    if (!confirm(t({ key: "ui.common.leave_room_confirm" }))) return;
+
+    leaveRoomButton.disabled = true;
+    try {
+      const response = await fetch("/leave-room", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      window.location.replace("/");
+    } catch (err) {
+      console.error("Failed to leave room:", err);
+      leaveRoomButton.disabled = false;
+      alert(t({ key: "ui.common.leave_room_failed" }));
+    }
+  });
+}
 
 loadTranslations().finally(() => socket.connect());

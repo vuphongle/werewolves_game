@@ -50,6 +50,13 @@ body {
   flex-direction: column;
 }
 
+.game-session-row {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 2100;
+}
+
 /* consolidated panel styles */
 .action-area,
 .log-panel,
@@ -195,6 +202,23 @@ h4 {
 button {
   cursor: pointer;
   border: none;
+}
+
+.leave-room-btn {
+  padding: 9px 14px;
+  border: 1px solid salmon;
+  border-radius: 5px;
+  background-color: var(--danger-color);
+  color: white;
+}
+
+.leave-room-btn:hover:not(:disabled) {
+  background-color: firebrick;
+}
+
+.leave-room-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 /* Big Buttons (PnP, Overlays) */
@@ -345,6 +369,59 @@ button {
   text-decoration: line-through;
   color: lightslategray;
   background-color: var(--bg-item);
+}
+
+.player-list li.connection-disconnected {
+  border-left: 3px solid var(--warning-color);
+}
+
+.player-list li.connection-left {
+  border-left: 3px solid var(--text-muted);
+}
+
+.player-identity {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.connection-indicator,
+.player-connection-status {
+  display: inline-block;
+  border-radius: 10px;
+  font-size: 0.75em;
+  font-weight: normal;
+  margin-left: 8px;
+  padding: 2px 6px;
+}
+
+.game-session-row .connection-indicator {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+.connection-connected {
+  color: var(--success-color);
+}
+
+.player-connection-status.connection-connected {
+  background-color: rgba(60, 179, 113, 0.2);
+}
+
+.connection-disconnected {
+  color: lightsalmon;
+}
+
+.player-connection-status.connection-disconnected {
+  background-color: rgba(255, 160, 122, 0.2);
+}
+
+.connection-left {
+  color: lightslategray;
+}
+
+.player-connection-status.connection-left {
+  background-color: rgba(119, 136, 153, 0.2);
 }
 
 .accusation-count {

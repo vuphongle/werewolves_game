@@ -20,7 +20,13 @@
   },
   "ui": {
     "common": {
-      "admin_label": "ADMIN:"
+      "admin_label": "ADMIN:",
+      "connection_connected": "Connected",
+      "connection_disconnected": "Disconnected",
+      "connection_left": "Left",
+      "leave_room_btn": "Leave room",
+      "leave_room_confirm": "Leave this room? You can rejoin from the home screen.",
+      "leave_room_failed": "Could not leave the room. Please try again."
     },
     "login": {
       "error_rate_limit": "Too many attempts. Please wait.",

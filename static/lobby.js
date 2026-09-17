@@ -299,9 +299,26 @@ async function loadRoles() {
 }
 // --- 2. Socket Events ---
 
+function setPageConnectionIndicator(connectionState) {
+  const pageTitle = document.querySelector(".lobby-container > h2");
+  if (!pageTitle) return;
+
+  let indicator = document.getElementById("connection-indicator");
+  if (!indicator) {
+    indicator = document.createElement("span");
+    indicator.id = "connection-indicator";
+    pageTitle.appendChild(indicator);
+  }
+  indicator.className = `connection-indicator connection-${connectionState}`;
+  indicator.textContent = t(`ui.common.connection_${connectionState}`);
+}
+
 socket.on("connect", () => {
+  setPageConnectionIndicator("connected");
   loadRoles();
 });
+
+socket.on("disconnect", () => setPageConnectionIndicator("disconnected"));
 
 let serverRoles = null;
 
@@ -406,6 +423,8 @@ socket.on("update_player_list", (data) => {
   }
   data.players.forEach((player) => {
     const li = document.createElement("li");
+    const connectionState = player.connection_state;
+    li.classList.add(`connection-${connectionState}`);
     li.textContent = player.name;
     if (player.id === currentPlayerId) {
       li.classList.add("you");
@@ -413,26 +432,36 @@ socket.on("update_player_list", (data) => {
     }
     if (player.is_admin) li.textContent += " 👑";
 
-    if (isPlayerAdmin && player.id !== currentPlayerId) {
-      const adminBtn = document.createElement("span");
-      adminBtn.textContent = "🪄";
-      adminBtn.className = "exclude-btn"; // Reuse style or add new class
-      adminBtn.style.marginRight = "5px";
-      adminBtn.title = t("ui.lobby.make_admin_title");
-      adminBtn.onclick = (e) => {
-        e.stopPropagation();
-        if (
-          confirm(
-            t({
-              key: "ui.lobby.confirm_make_admin",
-              variables: { name: player.name },
-            }),
-          )
-        ) {
-          socket.emit("admin_transfer_admin", { target_id: player.id });
-        }
-      };
-      li.appendChild(adminBtn);
+    const connectionStatus = document.createElement("span");
+    connectionStatus.className = `player-connection-status connection-${connectionState}`;
+    connectionStatus.textContent = t(`ui.common.connection_${connectionState}`);
+    li.appendChild(connectionStatus);
+
+    if (
+      isPlayerAdmin &&
+      player.id !== currentPlayerId
+    ) {
+      if (connectionState === "connected") {
+        const adminBtn = document.createElement("span");
+        adminBtn.textContent = "🪄";
+        adminBtn.className = "exclude-btn"; // Reuse style or add new class
+        adminBtn.style.marginRight = "5px";
+        adminBtn.title = t("ui.lobby.make_admin_title");
+        adminBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (
+            confirm(
+              t({
+                key: "ui.lobby.confirm_make_admin",
+                variables: { name: player.name },
+              }),
+            )
+          ) {
+            socket.emit("admin_transfer_admin", { target_id: player.id });
+          }
+        };
+        li.appendChild(adminBtn);
+      }
 
       const excludeBtn = document.createElement("span");
       excludeBtn.textContent = t("ui.lobby.exclude_btn");
@@ -862,6 +891,28 @@ function updateRoleSummary() {
       outputParts.push(count === 1 ? displayRole : `${count} ${displayRole}`);
   }
   summaryElement.textContent = outputParts.join(", ");
+}
+
+const leaveRoomButton = document.getElementById("leave-room-btn");
+if (leaveRoomButton) {
+  leaveRoomButton.addEventListener("click", async () => {
+    if (!confirm(t("ui.common.leave_room_confirm"))) return;
+
+    leaveRoomButton.disabled = true;
+    try {
+      const response = await fetch("/leave-room", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      window.location.replace("/");
+    } catch (err) {
+      console.error("Failed to leave room:", err);
+      leaveRoomButton.disabled = false;
+      alert(t("ui.common.leave_room_failed"));
+    }
+  });
 }
 
 loadTranslations().finally(() => socket.connect());

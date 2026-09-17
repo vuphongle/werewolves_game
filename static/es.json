@@ -20,7 +20,13 @@
   },
   "ui": {
     "common": {
-      "admin_label": "ADMINISTRADOR:"
+      "admin_label": "ADMINISTRADOR:",
+      "connection_connected": "Conectado",
+      "connection_disconnected": "Desconectado",
+      "connection_left": "Se fue",
+      "leave_room_btn": "Salir de la sala",
+      "leave_room_confirm": "¿Salir de esta sala? Puedes volver a entrar desde la pantalla de inicio.",
+      "leave_room_failed": "No se pudo salir de la sala. Inténtalo de nuevo."
     },
     "login": {
       "error_rate_limit": "Demasiados intentos. Por favor espera.",

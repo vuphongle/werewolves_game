@@ -45,8 +45,8 @@ _Jitsi Meet_ or Zoom), where the real-time discussion and deception take place
 - **🏆 Solo Win Conditions:** Neutral roles like the **Monster**, **Fool**, or
   **Demented Villager** can win alone, ignoring team allegiances.
 
-- **Robust Admin Controls:** The admin is first player to join the lobby OR
-  player using the DEFAULT_ADMIN_CODE. Admin has the ability to:
+- **Robust Admin Controls:** The admin is the first player to join the lobby OR
+  a player using the optional `GAME_ADMIN_CODE`. Admin has the ability to:
   - Exclude players from the lobby
   - Start the game once enough players have joined (minimum of 4)
   - Set custom timer durations (in seconds) for the Night, Accusation, and Lynch
@@ -175,7 +175,9 @@ To run this project locally, follow these steps:
     _something_long_random, CORS_ALLOWED_ORIGINS_ to desired game web address
     like:
     http://127.0.0.1:5000,http://your.ip.here:5000,https://your.site.here:5000
-    OR leave blank to disable CORS and use any site.
+    Leave it blank for same-origin access, or set it to `*` to explicitly allow
+    any origin. Set `GAME_ADMIN_CODE` only if you want an optional admin login
+    code.
 
 3.  **EITHER** run via Dockerfile (steps 3A & 5) **OR** through docker-compose
     (steps 3B & 5) **OR** install and run locally (steps 3C-5).
@@ -252,13 +254,15 @@ To run this project locally, follow these steps:
 6.  **Access the game:** Open your web browser and go to game web address and
     port set in `.env.werewolves CORS_ALLOWED_ORIGINS`. Defaults:
     `http://127.0.0.1:5000`. Open multiple tabs or browsers to simulate
-    different players joining the game. Initial Game Code is `W` and first
-    player to join is **Admin**, or Initial Admin Code is `BLM`.
+    different players joining the game. Initial Game Code is `W` and the first
+    player to join is **Admin**. An optional admin login code can be configured
+    with `GAME_ADMIN_CODE`.
 
 ### Game Configuration (config.py)
 
 - DEFAULT_CODE: Set initial default game_code, normally `W`, case insensitive.
-- DEFAULT_ADMIN_CODE: Default game_admin_code, normally `BLM`, case insensitive.
+- GAME_ADMIN_CODE: Optional admin login code; unset or blank disables code
+  elevation.
 - DEFAULT_LANGUAGE: Set to "es" or "de" to change the server default.
 - TIME_NIGHT / TIME_ACCUSATION: Change default durations (seconds).
 - PAUSE_DURATION: Seconds to pause between phases (to read text).

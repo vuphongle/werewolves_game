@@ -143,7 +143,8 @@
 2.  **编辑** `.env.werewolves` 文件。将 _FLASK_SECRET_KEY_ 改为 _长随机串_，将
     _CORS_ALLOWED_ORIGINS_ 改为游戏访问地址，如：
     http://127.0.0.1:5000,http://your.ip.here:5000,https://your.site.here:5000
-    或留空以禁用 CORS。
+    留空时仅允许同源访问；只有显式设置为 `*` 时才允许任意来源。仅在需要可选管理员登录码时设置
+    `GAME_ADMIN_CODE`。
 
 3.  **选择** 通过 Dockerfile 运行（步骤 3A & 5）**或**
     通过 docker-compose 运行（步骤 3B & 5）**或** 本地安装运行（步骤 3C-5）。
@@ -221,6 +222,7 @@
 ### 游戏配置（config.py）
 
 - DEFAULT_CODE：设置初始默认游戏码，通常为 `W`，不区分大小写。
+- GAME_ADMIN_CODE：可选管理员登录码；未设置或为空时禁用通过代码获得管理员权限。
 - DEFAULT_LANGUAGE：设置为 "zh" 改变服务器默认语言。
 - TIME_NIGHT / TIME_ACCUSATION：更改默认时长（秒）。
 - PAUSE_DURATION：阶段间暂停秒数（用于阅读文本）。

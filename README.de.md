@@ -51,8 +51,9 @@ von einem bis mehreren Geräten im **Pass-and-Play**-Modus.
   oder der **Demente Dorfbewohner** können alleine gewinnen und
   Teamzugehörigkeiten ignorieren.
 
-- **Robuste Admin-Kontrollen:** Der erste Spieler, der dem Lobby beitritt oder
-  DEFAULT_ADMIN_CODE verwendet, wird Administrator und hat die Fähigkeit:
+- **Robuste Admin-Kontrollen:** Der erste Spieler, der der Lobby beitritt, oder
+  ein Spieler mit dem optionalen `GAME_ADMIN_CODE` wird Administrator und hat
+  die Fähigkeit:
   - Spieler aus der Lobby auszuschließen.
   - Das Spiel zu starten, sobald genügend Spieler beigetreten sind (mindestens
     4).
@@ -205,8 +206,9 @@ Um dieses Projekt lokal auszuführen, befolgen Sie diese Schritte:
     _FLASK_SECRET_KEY_ zu etwas*langes_zufaelliges, \_CORS_ALLOWED_ORIGINS* zur
     gewünschten Webadresse des Spiels wie:
     http://127.0.0.1:5000,http://ihre.ip.hier:5000,https://ihre.seite.hier:5000
-    ODER lassen Sie es leer, um CORS zu deaktivieren und jede Seite zu
-    verwenden.
+    Lassen Sie den Wert für Same-Origin-Zugriff leer oder setzen Sie ihn
+    ausdrücklich auf `*`, um jeden Ursprung zu erlauben. Setzen Sie
+    `GAME_ADMIN_CODE` nur, wenn Sie einen optionalen Admin-Anmeldecode möchten.
 
 3.  **ENTWEDER** über Dockerfile ausführen (Schritte 3A & 5) **ODER** über
     docker-compose (Schritte 3B & 5) **ODER** lokal installieren und ausführen
@@ -293,8 +295,8 @@ Um dieses Projekt lokal auszuführen, befolgen Sie diese Schritte:
 
 - DEFAULT_CODE: Setzt den anfängliche game_code, normalerweise `W`, case
   insensitive.
-- DEFAULT_ADMIN_CODE: Default game_admin_code, normalerweise `BLM`, case
-  insensitive.
+- GAME_ADMIN_CODE: Optionaler Admin-Anmeldecode; nicht gesetzt oder leer
+  deaktiviert die Code-basierte Admin-Rechtevergabe.
 - DEFAULT_LANGUAGE: Auf "es" oder "de" setzen, um den Serverstandard zu ändern.
 - TIME_NIGHT / TIME_ACCUSATION: Standarddauer ändern (Sekunden).
 - PAUSE_DURATION: Sekunden zum Pausieren zwischen Phasen (um Text zu lesen).

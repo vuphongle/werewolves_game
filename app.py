@@ -24,10 +24,6 @@ from flask import (
 )
 from flask_socketio import SocketIO, emit, join_room
 
-from config import GAME_DEFAULTS
-from game_engine import *
-from roles import *
-
 # --- App Initialization ---
 # android web config
 internal_path = join(dirname(__file__), '.env.werewolves')
@@ -44,6 +40,10 @@ else:
     # If neither exists, find_dotenv will try to locate a generic .env
     print("No specific .env.werewolves found. Searching for default .env...")
     load_dotenv(find_dotenv())
+
+from config import GAME_DEFAULTS
+from game_engine import *
+from roles import *
 
 app = Flask(__name__)
 # IMPORTANT: In production, this MUST be set as an environment variable in .env.werewolves
@@ -105,22 +105,18 @@ game_instance = Game("main_game")
 
 join_attempts = {} # for rate limiting
 
+
+def parse_cors_allowed_origins(raw_value):
+    if raw_value is None or not raw_value.strip():
+        return None
+    if raw_value.strip() == "*":
+        return "*"
+    return [origin.strip() for origin in raw_value.split(",") if origin.strip()]
+
+
 # Configure CORS for Socket.IO from environment variables
 # This is crucial for security in a production environment.
-game_port = os.environ.get("GAME_PORT")
-print(f"GAME_PORT: ", game_port)
-nginx_port = os.environ.get("NGINX_PORT", "5000")
-
-# Default to allowing all origins (*) if CORS_ALLOWED_ORIGINS is missing
-origins_raw = os.environ.get("CORS_ALLOWED_ORIGINS", "*")
-
-if origins_raw == "*":
-    origins = "*"
-else:
-    # If a specific origin exists, handle the port replacement logic
-    if game_port and nginx_port:
-        origins_raw = origins_raw.replace(f":{nginx_port}", f":{game_port}")
-    origins = origins_raw.split(",")
+origins = parse_cors_allowed_origins(os.environ.get("CORS_ALLOWED_ORIGINS"))
 
 # 2. Set Async Mode dynamically
 # Android MUST use 'threading' to avoid crashes.
@@ -134,7 +130,6 @@ except ImportError:
 if IS_ANDROID:
     socketio_async_mode = 'threading'
     print(f"Detected Android environment. Forcing async_mode: {socketio_async_mode}.")
-    origins = "*"
 else:
     socketio_async_mode = None
     print(f"Detected PC environment. async_mode: {socketio_async_mode}")
@@ -169,6 +164,7 @@ class PlayerWrapper:
         self.sid = sid
         self.is_admin = False
         self.language = language
+        self.connected: bool = True
 
 
 # --- Helper Functions ---
@@ -177,6 +173,224 @@ def get_player_by_sid(sid):
         if player_wrapper.sid == sid:
             return player_id, player_wrapper
     return None, None
+
+
+def get_connection_state(player_id):
+    player_wrapper = game["players"].get(player_id)
+    if not player_wrapper:
+        return "left"
+    return "connected" if player_wrapper.connected else "disconnected"
+
+
+def get_request_player():
+    player_id = session.get("player_id")
+    player_wrapper = game["players"].get(player_id)
+    if not player_wrapper or player_wrapper.sid != request.sid:
+        return None, None
+    return player_id, player_wrapper
+
+
+def is_request_admin():
+    _, player_wrapper = get_request_player()
+    return bool(
+        player_wrapper
+        and player_wrapper.is_admin
+        and game.get("admin_sid") == request.sid
+    )
+
+
+def set_current_admin(player_id):
+    for player_wrapper in game["players"].values():
+        player_wrapper.is_admin = False
+
+    admin = game["players"].get(player_id)
+    game["admin_sid"] = admin.sid if admin and admin.connected else None
+    if admin:
+        admin.is_admin = True
+
+
+def select_admin_successor(excluding_player_id=None):
+    pending_admin_id = None
+    for player_id, player_wrapper in game["players"].items():
+        if player_id == excluding_player_id:
+            continue
+        if player_wrapper.connected:
+            return player_id
+        if pending_admin_id is None:
+            pending_admin_id = player_id
+    return pending_admin_id
+
+
+def transfer_or_clear_admin(departing_player_id):
+    departing_player = game["players"].get(departing_player_id)
+    if not departing_player or not departing_player.is_admin:
+        return None
+
+    successor_id = select_admin_successor(
+        excluding_player_id=departing_player_id
+    )
+    set_current_admin(successor_id)
+    return successor_id
+
+
+def emit_validation_error():
+    return emit(
+        "error",
+        {"message": {"key": "ui.errors.action_ignored", "variables": {}}},
+    )
+
+
+def require_dict_payload(data):
+    if not isinstance(data, dict):
+        emit_validation_error()
+        return None
+    return data
+
+
+VALID_GAME_MODES = {"standard", "pass_and_play"}
+BOOLEAN_SETTING_KEYS = {"ghost_mode", "pg_mode", "solo_win_continues"}
+TIMER_SETTING_KEYS = {"night", "accusation", "lynch_vote"}
+KNOWN_ROLE_KEYS = {role_cls.name_key for role_cls in AVAILABLE_ROLES.values()}
+
+
+def validate_role_keys(roles):
+    if not isinstance(roles, list):
+        return None
+    if any(
+        not isinstance(role, str) or role not in KNOWN_ROLE_KEYS for role in roles
+    ):
+        return None
+    return roles.copy()
+
+
+def parse_timer_duration(value):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        duration = value
+    elif isinstance(value, str):
+        try:
+            duration = int(value)
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if not 10 <= duration <= 3600:
+        return None
+    return duration
+
+
+def validate_timer_settings(timers):
+    if not isinstance(timers, dict):
+        return None
+
+    validated = timers.copy()
+    if "timers_disabled" in timers and not isinstance(
+        timers["timers_disabled"], bool
+    ):
+        return None
+
+    for key in TIMER_SETTING_KEYS:
+        if key not in timers:
+            continue
+        duration = parse_timer_duration(timers[key])
+        if duration is None:
+            return None
+        validated[key] = duration
+    return validated
+
+
+def validate_game_settings(settings):
+    if not isinstance(settings, dict):
+        return None
+
+    validated = settings.copy()
+    if "mode" in settings:
+        mode = settings["mode"]
+        if not isinstance(mode, str) or mode not in VALID_GAME_MODES:
+            return None
+    for key in BOOLEAN_SETTING_KEYS:
+        if key in settings and not isinstance(settings[key], bool):
+            return None
+    if "timers" in settings:
+        timers = validate_timer_settings(settings["timers"])
+        if timers is None:
+            return None
+        validated["timers"] = timers
+    return validated
+
+
+def is_valid_action_target(target_id, allow_nobody=False, allow_empty=False):
+    if allow_empty and target_id == "":
+        return True
+    if allow_nobody and target_id == "Nobody":
+        return True
+    return isinstance(target_id, str) and target_id in game_instance.players
+
+
+def validate_action_payload(data, allow_nobody=False, allow_empty=False):
+    if "target_id" not in data or not is_valid_action_target(
+        data["target_id"],
+        allow_nobody=allow_nobody,
+        allow_empty=allow_empty,
+    ):
+        return False
+
+    if "metadata" not in data:
+        return True
+    metadata = data["metadata"]
+    if not isinstance(metadata, dict):
+        return False
+    if "target_id2" in metadata and not is_valid_action_target(
+        metadata["target_id2"],
+        allow_empty=True,
+    ):
+        return False
+    if "potion" in metadata:
+        potion = metadata["potion"]
+        if not isinstance(potion, str) or potion not in {
+            "heal",
+            "poison",
+            "none",
+        }:
+            return False
+    return True
+
+
+def get_authorized_actor(data, allow_pnp=False):
+    data = require_dict_payload(data)
+    if data is None:
+        return None
+
+    player_id, player_wrapper = get_request_player()
+    if not player_wrapper:
+        return None
+
+    if game_instance.mode != "pass_and_play":
+        return player_id
+
+    if not allow_pnp or not is_request_admin():
+        return None
+
+    actor_id = data.get("actor_id")
+    if not isinstance(actor_id, str) or actor_id not in game_instance.players:
+        emit_validation_error()
+        return None
+    return actor_id
+
+
+def emit_to_player_ids(event, payload, player_ids):
+    for player_id in player_ids:
+        player_wrapper = game["players"].get(player_id)
+        if player_wrapper and player_wrapper.sid:
+            socketio.emit(event, payload, to=player_wrapper.sid)
+
+
+def get_rematch_vote_status():
+    eligible_ids = set(game["players"]).intersection(game_instance.players)
+    valid_votes = game_instance.rematch_votes.intersection(eligible_ids)
+    return len(valid_votes), len(eligible_ids)
 
 
 def log_and_emit(message, log_text=None):
@@ -197,6 +411,7 @@ def broadcast_player_list():
                 "name": player_wrapper.name,
                 "is_admin": player_wrapper.is_admin,
                 "is_alive": is_alive,
+                "connection_state": get_connection_state(player_id),
             }
         )
     socketio.emit(
@@ -223,7 +438,13 @@ def get_public_game_state():
                 lang = game["players"][p.id].language
 
             all_players_data.append(
-                {"id": p.id, "name": p.name, "is_alive": p.is_alive, "language": lang}
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "is_alive": p.is_alive,
+                    "language": lang,
+                    "connection_state": get_connection_state(p.id),
+                }
             )
 
         accusation_counts = {}
@@ -253,6 +474,8 @@ def get_public_game_state():
         elif game_instance.phase == PHASE_LYNCH:
             acted_ids = list(game_instance.pending_actions.keys())
 
+        rematch_vote_count, rematch_eligible_count = get_rematch_vote_status()
+
         return {
             "accusation_counts": accusation_counts,
             "acted_players": acted_ids,
@@ -270,7 +493,8 @@ def get_public_game_state():
             "mode": game_instance.mode,
             "phase": game_instance.phase,
             "phase_end_time": game_instance.phase_end_time,
-            "rematch_vote_count": len(game_instance.rematch_votes),
+            "rematch_eligible_count": rematch_eligible_count,
+            "rematch_vote_count": rematch_vote_count,
             "sleep_vote_count": len(game_instance.end_day_votes),
             "timers_disabled": game_instance.timers_disabled,
             "total_accusation_duration": game_instance.timer_durations.get(
@@ -419,7 +643,18 @@ def background_game_loop():
 
 
 def perform_tally_accusations():
-    outcome = game_instance.tally_accusations()
+    resolving_game = game_instance
+    token = resolving_game.begin_phase_resolution(PHASE_ACCUSATION)
+    if token is None:
+        return
+    try:
+        return _perform_tally_accusations(resolving_game)
+    finally:
+        resolving_game.finish_phase_resolution(token)
+
+
+def _perform_tally_accusations(resolving_game):
+    outcome = resolving_game.tally_accusations()
     result_type = outcome["result"]
     if result_type == "trial":
         if outcome.get("message"):
@@ -430,33 +665,37 @@ def perform_tally_accusations():
             "key": "events.trial_started",
             "variables": {"target": outcome["target_name"]},
         }
-        game_instance.message_history.append(trial_msg)
+        resolving_game.message_history.append(trial_msg)
 
         socketio.emit(
             "lynch_vote_started",
             {
                 "target_id": outcome["target_id"],
                 "target_name": outcome["target_name"],
-                "phase_end_time": game_instance.phase_end_time,
+                "phase_end_time": resolving_game.phase_end_time,
             },
             to=game["game_code"],
         )
     elif result_type == "restart":
-        game_instance.message_history.append(outcome["message"])
+        resolving_game.message_history.append(outcome["message"])
         socketio.emit(
             "lynch_vote_result", {"message": outcome["message"]}, to=game["game_code"]
         )
         socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
-        game_instance.set_phase(PHASE_ACCUSATION)
+        if resolving_game is not game_instance:
+            return
+        resolving_game.set_phase(PHASE_ACCUSATION)
         broadcast_game_state()
 
     elif result_type == "night":
-        game_instance.message_history.append(outcome["message"])
+        resolving_game.message_history.append(outcome["message"])
         # No Accusations / Deadlock -> Sleep
         socketio.emit(
             "lynch_vote_result", {"message": outcome["message"]}, to=game["game_code"]
         )
         socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
+        if resolving_game is not game_instance:
+            return
         broadcast_game_state()
 
 
@@ -479,6 +718,7 @@ def index():
         )
     # login properly then redirect to lobby
     if request.method == "POST":
+        session.pop("admin_code", None)
         lang = request.form.get("language", GAME_DEFAULTS["DEFAULT_LANGUAGE"])
         # join rate limiting
         client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
@@ -515,7 +755,8 @@ def index():
             return render_template(
                 "index.html", error=t_server("ui.login.error_code_length", lang)
             )
-        if code != game["game_code"] and code != game["game_admin_code"]:
+        admin_code = game.get("game_admin_code")
+        if code != game["game_code"] and not (admin_code and code == admin_code):
             return render_template(
                 "index.html", error=t_server("ui.login.error_code_invalid", lang)
             )
@@ -536,7 +777,7 @@ def index():
 
         session["language"] = lang
         session["player_id"], session["name"] = str(uuid.uuid4()), name
-        if code == game["game_admin_code"]:
+        if admin_code and code == admin_code:
             session["admin_code"] = True
         return redirect(url_for("lobby"))
     return render_template("index.html")
@@ -590,10 +831,46 @@ def favicon():
 def get_roles():
     return jsonify([cls().to_dict() for cls in AVAILABLE_ROLES.values()])
 
-@app.route('/shutdown', methods=['POST'])
-def shutdown():
-    socketio.stop()
-    return "Server shutting down...", 200
+
+@app.route("/leave-room", methods=["POST"])
+def leave_room():
+    global game_instance, game_loop_running
+
+    if not request.is_json or not isinstance(request.get_json(silent=True), dict):
+        return jsonify({"error": "json_required"}), 415
+
+    player_id = session.get("player_id")
+    player_wrapper = game["players"].get(player_id)
+    if not player_id or not player_wrapper:
+        return jsonify({"error": "invalid_session"}), 401
+
+    departing_sid = player_wrapper.sid
+    leaving_lobby = game["game_state"] == PHASE_LOBBY
+
+    transfer_or_clear_admin(player_id)
+    del game["players"][player_id]
+
+    if leaving_lobby:
+        game_instance.remove_player(player_id)
+    elif not game["players"]:
+        game_loop_running = False
+        configured_settings = getattr(game_instance, "settings", {})
+        game_instance = Game("main_game", settings=configured_settings)
+        game["game_state"] = PHASE_LOBBY
+        game["game_over_data"] = None
+
+    for key in ("player_id", "name", "admin_code"):
+        session.pop(key, None)
+
+    if departing_sid:
+        socketio.server.disconnect(departing_sid, namespace="/")
+
+    if game["game_state"] == PHASE_LOBBY:
+        broadcast_player_list()
+    else:
+        broadcast_game_state()
+
+    return jsonify({"redirect": "/"})
 
 # Only disable caching for HTML and JSON (Game Data)
 @app.after_request
@@ -611,10 +888,16 @@ def add_header(response):
 # --- SocketIO Events ---
 @socketio.on("admin_update_roles")
 def handle_admin_update_roles(data):
-    if request.sid != game["admin_sid"]:
+    if not is_request_admin():
         return
+    data = require_dict_payload(data)
+    if data is None:
+        return
+    roles = validate_role_keys(data.get("roles"))
+    if roles is None:
+        return emit_validation_error()
     # 1. Update Server State
-    lobby_state["selected_roles"] = data.get("roles", [])
+    lobby_state["selected_roles"] = roles
 
     # 2. Broadcast to ALL clients so their checkboxes update
     emit("sync_roles", {"roles": lobby_state["selected_roles"]}, to=game["game_code"])
@@ -622,17 +905,23 @@ def handle_admin_update_roles(data):
 
 @socketio.on("admin_update_settings")
 def handle_admin_update_settings(data):
-    if request.sid != game["admin_sid"]:
+    if not is_request_admin():
         return
+    data = require_dict_payload(data)
+    if data is None:
+        return
+    settings = validate_game_settings(data)
+    if settings is None:
+        return emit_validation_error()
 
     # Update lobby settings state
     if "settings" not in lobby_state:
         lobby_state["settings"] = {}
-    for k, v in data.items():
+    for k, v in settings.items():
         lobby_state["settings"][k] = v
 
-    if "pg_mode" in data:
-        game_instance.pg_mode = data["pg_mode"]
+    if "pg_mode" in settings:
+        game_instance.pg_mode = settings["pg_mode"]
 
     # Broadcast updates to all clients in lobby
     emit("sync_settings", lobby_state["settings"], to=game["game_code"])
@@ -641,27 +930,28 @@ def handle_admin_update_settings(data):
 @socketio.on("connect")
 def handle_connect(auth=None):
     player_id = session.get("player_id")
-    if not player_id:
-        return
+    player_name = session.get("name")
+    if not player_id or not player_name:
+        return False
 
     # This logic handles both new players joining the lobby and existing players reconnecting.
     if player_id not in game["players"]:
         if game["game_state"] != PHASE_LOBBY:
-            return emit("error", {"message": {"key": "ui.errors.game_in_progress", "variables": {}}})
+            return False
         lang = session.get("language", GAME_DEFAULTS["DEFAULT_LANGUAGE"])
-        new_player = PlayerWrapper(session.get("name"), request.sid, language=lang)
+        new_player = PlayerWrapper(player_name, request.sid, language=lang)
+        game["players"][player_id] = new_player
         # set first player in room to be admin, if no admin from previous match
         # OR if we are in Pass-and-Play mode, grant admin to the newly added player
         # so they can control the lobby from the single device
         is_pnp = lobby_state.get("settings", {}).get("mode") == "pass_and_play"
-        if not game["admin_sid"] or is_pnp or session.get("admin_code"):
-            new_player.is_admin = True
-            game["admin_sid"] = request.sid
+        has_admin = any(wrapper.is_admin for wrapper in game["players"].values())
+        if not has_admin or is_pnp or session.get("admin_code"):
+            set_current_admin(player_id)
             log_and_emit(
                 {"key": "events.player_joined_admin", "variables": {"name": new_player.name}},
                 f"===> +++ New player Admin {new_player.name} added to game.",
             )
-        game["players"][player_id] = new_player
         log_and_emit(
             {"key": "events.player_joined", "variables": {"name": new_player.name}},
             f"===> +++ New player {new_player.name} added to game.",
@@ -669,6 +959,7 @@ def handle_connect(auth=None):
     # reconnecting player
     else:
         game["players"][player_id].sid = request.sid
+        game["players"][player_id].connected = True
         player_name = game["players"][player_id].name
         log_and_emit(
             {"key": "events.player_reconnected", "variables": {"name": player_name}},
@@ -676,7 +967,7 @@ def handle_connect(auth=None):
         )
         # reestablish admin for new game/rematch
         if game["players"][player_id].is_admin:
-            game["admin_sid"] = request.sid
+            set_current_admin(player_id)
             log_and_emit(
                 {"key": "events.admin_reconnected", "variables": {"name": player_name}},
                 f"===> Admin {player_name} confirmed and SID updated.",
@@ -700,24 +991,23 @@ def handle_connect(auth=None):
 
 @socketio.on("disconnect")
 def handle_disconnect():
-    player_id, _ = get_player_by_sid(request.sid)
-    if player_id and player_id in game["players"]:
-        player_name = game["players"][player_id].name
-        log_and_emit(
-            {"key": "events.player_disconnected", "variables": {"name": player_name}},
-            f"==== Player {player_name} disconnected ====",
-        )
+    player_id, player_wrapper = get_player_by_sid(request.sid)
+    if not player_id or not player_wrapper or player_wrapper.sid != request.sid:
+        return
 
-
-@socketio.on("join_game")
-def on_join(data):
-    room = data["room"]
-    join_room(room)
-    if "game_instance" in globals() and game_instance:
-        current_players = [p.name for p in game_instance.players.values()]
+    player_wrapper.sid = None
+    player_wrapper.connected = False
+    if player_wrapper.is_admin:
+        game["admin_sid"] = None
+    player_name = player_wrapper.name
+    log_and_emit(
+        {"key": "events.player_disconnected", "variables": {"name": player_name}},
+        f"==== Player {player_name} disconnected ====",
+    )
+    if game["game_state"] == PHASE_LOBBY:
+        broadcast_player_list()
     else:
-        current_players = []
-    emit("update_player_list", {"players": current_players}, to=room)
+        broadcast_game_state()
 
 
 last_message_time = {}
@@ -725,6 +1015,10 @@ last_message_time = {}
 
 @socketio.on("send_message")
 def handle_send_message(data):
+    data = require_dict_payload(data)
+    if data is None:
+        return
+
     current_time = time.time()
     last_time = last_message_time.get(request.sid, 0)
 
@@ -734,7 +1028,7 @@ def handle_send_message(data):
 
     last_message_time[request.sid] = current_time
 
-    pid, p = get_player_by_sid(request.sid)
+    pid, p = get_request_player()
     if not p:
         return
     raw_msg = data.get("message", "").strip()
@@ -748,7 +1042,7 @@ def handle_send_message(data):
 
     # 2. Check Restrictions (Admin Only OR Night Time)
     if game_instance.admin_only_chat or is_night:
-        if p.is_admin:
+        if is_request_admin():
             # Admin overrides restriction -> Sends as Announcement
             socketio.emit(
                 "new_message",
@@ -778,8 +1072,21 @@ def handle_send_message(data):
     active_phases = [PHASE_ACCUSATION, PHASE_LYNCH]
     if phase in active_phases:
         engine_p = game_instance.players.get(pid)
-        if engine_p:
-            channel = "living" if engine_p.is_alive else "ghost"
+        if not engine_p:
+            return
+        channel = "living" if engine_p.is_alive else "ghost"
+        audience_ids = [
+            player.id
+            for player in game_instance.players.values()
+            if player.is_alive == engine_p.is_alive
+        ]
+        emit_to_player_ids(
+            "new_message",
+            {"text": f"<strong>{p.name}:</strong> {msg}", "channel": channel},
+            audience_ids,
+        )
+        return
+
     socketio.emit(
         "new_message",
         {"text": f"<strong>{p.name}:</strong> {msg}", "channel": channel},
@@ -789,8 +1096,7 @@ def handle_send_message(data):
 
 @socketio.on("admin_toggle_chat")
 def handle_admin_toggle_chat():
-    player_id, p = get_player_by_sid(request.sid)
-    if not p or not p.is_admin:
+    if not is_request_admin():
         return
     game_instance.admin_only_chat = not game_instance.admin_only_chat
     emit(
@@ -801,21 +1107,19 @@ def handle_admin_toggle_chat():
 
 @socketio.on("admin_transfer_admin")
 def handle_admin_transfer(data):
-    if request.sid != game["admin_sid"]:
+    if not is_request_admin():
+        return
+    data = require_dict_payload(data)
+    if data is None:
         return
 
     target_id = data.get("target_id")
-    if not target_id or target_id not in game["players"]:
-        return
+    if not isinstance(target_id, str) or target_id not in game["players"]:
+        return emit_validation_error()
 
-    current_admin_id = session.get("player_id")
+    current_admin_id, _ = get_request_player()
 
-    # 1. Update wrappers
-    game["players"][current_admin_id].is_admin = False
-    game["players"][target_id].is_admin = True
-
-    # 2. Update Global SID
-    game["admin_sid"] = game["players"][target_id].sid
+    set_current_admin(target_id)
 
     from_name = game["players"][current_admin_id].name
     to_name = game["players"][target_id].name
@@ -837,17 +1141,25 @@ def handle_admin_transfer(data):
 
 @socketio.on("admin_set_timers")
 def handle_admin_set_timers(data):
-    if request.sid != game["admin_sid"]:
+    if not is_request_admin():
         return
+    data = require_dict_payload(data)
+    if data is None:
+        return
+    timer_settings = validate_timer_settings(data)
+    if timer_settings is None:
+        return emit_validation_error()
 
     if "settings" not in lobby_state:
         lobby_state["settings"] = {}
 
     # Save disabled state if present
-    if "timers_disabled" in data:
+    if "timers_disabled" in timer_settings:
         if "timers" not in lobby_state["settings"]:
             lobby_state["settings"]["timers"] = {}
-        lobby_state["settings"]["timers"]["timers_disabled"] = data["timers_disabled"]
+        lobby_state["settings"]["timers"]["timers_disabled"] = timer_settings[
+            "timers_disabled"
+        ]
 
     # Save durations if present
     key_map = {
@@ -858,17 +1170,19 @@ def handle_admin_set_timers(data):
 
     # Check if we are updating specific durations (from the 'Set Timers' button)
     # If so, save them to lobby_state too
-    has_duration_update = any(k in data for k in key_map.keys())
+    has_duration_update = any(k in timer_settings for k in key_map.keys())
     if has_duration_update:
         if "timers" not in lobby_state["settings"]:
             lobby_state["settings"]["timers"] = {}
 
         for frontend_key in key_map.keys():
-            if frontend_key in data:
-                lobby_state["settings"]["timers"][frontend_key] = data[frontend_key]
+            if frontend_key in timer_settings:
+                lobby_state["settings"]["timers"][frontend_key] = timer_settings[
+                    frontend_key
+                ]
 
-    if "timers_disabled" in data:
-        game_instance.timers_disabled = data["timers_disabled"]
+    if "timers_disabled" in timer_settings:
+        game_instance.timers_disabled = timer_settings["timers_disabled"]
         if game_instance.timers_disabled:
             log_and_emit(
                 {"key": "events.timers_paused", "variables": {}},
@@ -891,15 +1205,10 @@ def handle_admin_set_timers(data):
             "lynch_vote": PHASE_LYNCH,
         }
         for frontend_key, engine_phase_key in key_map.items():
-            val = data.get(frontend_key)
-            if val:
-                try:
-                    new_duration = int(val)
-                    final_duration = max(10, new_duration)
-                    game_instance.timer_durations[engine_phase_key] = final_duration
-                    updated_timers[frontend_key] = final_duration
-                except ValueError:
-                    pass
+            if frontend_key in timer_settings:
+                duration = timer_settings[frontend_key]
+                game_instance.timer_durations[engine_phase_key] = duration
+                updated_timers[frontend_key] = duration
         if updated_timers:
             emit("admin_timers_updated", {"timers": updated_timers})
             log_and_emit(
@@ -917,12 +1226,18 @@ def handle_admin_set_timers(data):
 
 @socketio.on("admin_exclude_player")
 def handle_admin_exclude_player(data):
-    if request.sid != game["admin_sid"] or game["game_state"] != PHASE_LOBBY:
+    if not is_request_admin() or game["game_state"] != PHASE_LOBBY:
+        return
+    data = require_dict_payload(data)
+    if data is None:
         return
     player_id = data.get("player_id")
-    if player_id in game["players"]:
-        sid = game["players"][player_id].sid
-        del game["players"][player_id]
+    if not isinstance(player_id, str) or player_id not in game["players"]:
+        return emit_validation_error()
+
+    sid = game["players"][player_id].sid
+    del game["players"][player_id]
+    if sid:
         emit("force_kick", to=sid)
     if player_id in game_instance.players:
         del game_instance.players[player_id]
@@ -931,10 +1246,11 @@ def handle_admin_exclude_player(data):
 
 @socketio.on("start_game")
 def handle_start_game(data):
-    settings = data.get("settings", {})
-    is_pnp = settings.get("mode") == "pass_and_play"
+    data = require_dict_payload(data)
+    if data is None:
+        return
 
-    if request.sid != game.get("admin_sid") and not is_pnp:
+    if not is_request_admin():
         return emit(
             "error",
             {"message": {"key": "ui.errors.admin_start_only", "variables": {}}},
@@ -954,6 +1270,10 @@ def handle_start_game(data):
             "error",
             {"message": {"key": "ui.errors.game_in_progress", "variables": {}}},
         )
+    settings = validate_game_settings(data.get("settings", {}))
+    roles = validate_role_keys(data.get("roles"))
+    if settings is None or roles is None:
+        return emit_validation_error()
     log_and_emit(
         {"key": "events.game_started", "variables": {}},
         "===> Admin started game. Assigning roles.",
@@ -964,7 +1284,7 @@ def handle_start_game(data):
         socketio.start_background_task(background_game_loop)
     # configure engine
     lobby_state["settings"] = settings
-    lobby_state["selected_roles"] = data.get("roles", [])
+    lobby_state["selected_roles"] = roles
     game_instance.settings = settings
     game_instance.ghost_mode = settings.get("ghost_mode", False)
     game_instance.mode = settings.get("mode", "standard")
@@ -990,7 +1310,7 @@ def handle_start_game(data):
         {"key": "events.game_started_mode", "variables": {"mode": game_instance.mode}},
         f"===> Game Started! Mode: {game_instance.mode}",
     )
-    game_instance.assign_roles(data.get("roles", []))
+    game_instance.assign_roles(roles)
     game["game_state"] = "started"
     socketio.emit("game_started", to=game["game_code"])
     game_instance.set_phase(PHASE_NIGHT)
@@ -999,11 +1319,8 @@ def handle_start_game(data):
 
 @socketio.on("admin_next_phase")
 def handle_admin_next_phase(data=None):
-    player_id, p = get_player_by_sid(request.sid)
-    is_pnp = data.get("is_pnp", None) if data else None
-    if not is_pnp:
-        if not p or not p.is_admin:
-            return
+    if not is_request_admin():
+        return
 
     current_phase = game_instance.phase
     log_and_emit(
@@ -1018,12 +1335,23 @@ def handle_admin_next_phase(data=None):
         resolve_lynch()
 
 def resolve_lynch():
-    result = game_instance.resolve_lynch_vote()
+    resolving_game = game_instance
+    token = resolving_game.begin_phase_resolution(PHASE_LYNCH)
+    if token is None:
+        return
+    try:
+        return _resolve_lynch(resolving_game)
+    finally:
+        resolving_game.finish_phase_resolution(token)
+
+
+def _resolve_lynch(resolving_game):
+    result = resolving_game.resolve_lynch_vote()
 
     # 1. Handle Announcements (if any)
     if result.get("announcements"):
         for ann in result["announcements"]:
-            game_instance.message_history.append(ann)
+            resolving_game.message_history.append(ann)
             socketio.emit("message", {"text": ann}, to=game["game_code"])
 
     # 2. Determine Primary Lynch Result
@@ -1031,8 +1359,8 @@ def resolve_lynch():
     if result.get("armor_save"):
         msg = {"key": "events.lynch_armor", "variables": {}}
     elif result["killed_id"]:
-        name = game_instance.players[result["killed_id"]].name
-        role = game_instance.players[result["killed_id"]].role.name_key
+        name = resolving_game.players[result["killed_id"]].name
+        role = resolving_game.players[result["killed_id"]].role.name_key
         msg = {
             "key": "events.lynch_success",
             "variables": {"name": name, "role": role}
@@ -1042,7 +1370,7 @@ def resolve_lynch():
     if result.get("summary"):
         msg["summary"] = result["summary"]
 
-    game_instance.message_history.append(msg)
+    resolving_game.message_history.append(msg)
 
     socketio.emit(
         "lynch_vote_result",
@@ -1059,8 +1387,8 @@ def resolve_lynch():
         for d in result["secondary_deaths"]:
             # Attempt to find the role for the translation key (game engine might not send it in 'd')
             role_key = "Unknown"
-            if "id" in d and d["id"] in game_instance.players:
-                r = game_instance.players[d["id"]].role
+            if "id" in d and d["id"] in resolving_game.players:
+                r = resolving_game.players[d["id"]].role
                 if r: role_key = r.name_key
             elif "role" in d:
                 role_key = d["role"]
@@ -1095,22 +1423,26 @@ def resolve_lynch():
                     "variables": {"name": d["name"], "reason": str(reason_raw)}
                 }
 
-            game_instance.message_history.append(sec_msg)
+            resolving_game.message_history.append(sec_msg)
             socketio.emit("message", {"text": sec_msg}, to=game["game_code"])
 
     # 4. Update Wolf Team & Check Game Over
-    living_wolves = game_instance.get_living_players("Werewolves")
+    living_wolves = resolving_game.get_living_players("Werewolves")
     for werewolf in living_wolves:
         send_werewolf_info(werewolf.id)
 
     socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
-    check_game_over_or_next_phase()
+    check_game_over_or_next_phase(resolving_game)
 
-def check_game_over_or_next_phase():
-    if game_instance.check_game_over():
-        game_instance.phase = PHASE_GAME_OVER
+
+def check_game_over_or_next_phase(resolving_game):
+    if resolving_game is not game_instance:
+        return
+
+    if resolving_game.check_game_over():
+        resolving_game.phase = PHASE_GAME_OVER
         game["game_state"] = PHASE_GAME_OVER
-        data = game_instance.game_over_data
+        data = resolving_game.game_over_data
         if data:
             game["game_over_data"] = data
             winner = data.get("winning_team", "Unknown")
@@ -1119,14 +1451,14 @@ def check_game_over_or_next_phase():
                 f"Game Over! The {winner} have won.",
             )
     else:
-        game_instance.advance_phase()
+        resolving_game.advance_phase()
     broadcast_game_state()
 
 
 @socketio.on("admin_set_new_code")
 def handle_admin_set_new_code(data):
     """Handles admin setting a new game code, keeping admin in lobby and kicking others."""
-    if request.sid != game.get("admin_sid"):
+    if not is_request_admin():
         return
     new_code = data.get("new_code", "").strip().upper()
     if not new_code:
@@ -1144,7 +1476,7 @@ def handle_admin_set_new_code(data):
             "error",
             {"message": {"key": "ui.errors.new_code_length", "variables": {}}},
         )
-    admin_id, admin_player = get_player_by_sid(request.sid)
+    admin_id, admin_player = get_request_player()
     if not admin_player:
         return
 
@@ -1238,7 +1570,17 @@ def handle_pnp_request(data):
     Called when PnP device clicks a player button.
     Sends that specific player's FULL private state (using generator).
     """
+    data = require_dict_payload(data)
+    if (
+        data is None
+        or game_instance.mode != "pass_and_play"
+        or not is_request_admin()
+    ):
+        return
+
     target_id = data.get("player_id")
+    if target_id not in game_instance.players:
+        return
     payload = generate_player_payload(target_id)
     if payload:
         emit("pnp_state_sync", payload)
@@ -1251,13 +1593,29 @@ def handle_pnp_action(data):
     """
     Unified action handler for Pass-and-Play.
     """
+    if game_instance.mode != "pass_and_play":
+        return
+    actor_id = get_authorized_actor(data, allow_pnp=True)
+    if not actor_id:
+        return
+    if not validate_action_payload(data, allow_nobody=True, allow_empty=True):
+        return emit_validation_error()
+
     print(f"handle_pnp_action")
-    result = game_instance.receive_night_action(
-        data.get("actor_id"), data.get("target_id")
+    originating_game = game_instance
+    originating_phase = originating_game.phase
+    result = originating_game.receive_night_action(
+        actor_id, data.get("target_id")
     )
     if result == "RESOLVED":
         socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
-        resolve_night()
+        if (
+            originating_game is not game_instance
+            or originating_phase != PHASE_NIGHT
+            or originating_game.phase != originating_phase
+        ):
+            return
+        resolve_night(originating_game)
     else:
         # Confirm receipt to client so they can show "Passed" screen
         emit("action_accepted", {}, to=request.sid)
@@ -1268,12 +1626,11 @@ def handle_client_ready_for_game():
     """
     Syncs the game state for the specific client requesting it.
     """
-    player_id = session.get("player_id")
-    if not player_id or player_id not in game["players"]:
+    player_id, player_wrapper = get_request_player()
+    if not player_wrapper:
         return
 
     # OPTIMIZATION: Only update the requester, not the whole server
-    player_wrapper = game["players"][player_id]
     payload = generate_player_payload(player_id, player_wrapper)
 
     if payload:
@@ -1282,10 +1639,11 @@ def handle_client_ready_for_game():
 
 @socketio.on("hero_choice")
 def handle_hero_choice(data):
-    player_id = session.get("player_id")
-    # PnP Override
-    if game_instance.mode == "pass_and_play" and "actor_id" in data:
-        player_id = data["actor_id"]
+    player_id = get_authorized_actor(data, allow_pnp=True)
+    if not player_id:
+        return
+    if not validate_action_payload(data, allow_nobody=True, allow_empty=True):
+        return emit_validation_error()
     target_id = data.get("target_id")
     if target_id == "Nobody":
         result = game_instance.receive_night_action(player_id, "Nobody")
@@ -1330,11 +1688,16 @@ def handle_hero_choice(data):
 
 @socketio.on("accuse_player")
 def handle_accuse_player(data):
-    pid = session.get("player_id")
-    if game_instance.mode == "pass_and_play" and "actor_id" in data:
-        pid = data["actor_id"]
+    pid = get_authorized_actor(data, allow_pnp=True)
+    if not pid:
+        return
+    if not validate_action_payload(data, allow_empty=True):
+        return emit_validation_error()
     tid = data.get("target_id")
-    all_voted = game_instance.process_accusation(pid, tid)
+    accusation_result = game_instance.process_accusation(pid, tid)
+    if accusation_result == "IGNORED":
+        return
+    all_voted = accusation_result
     # 2. Check what was recorded
     recorded_vote = game_instance.pending_actions.get(pid)
     if recorded_vote == "Ghost_Fail":
@@ -1377,10 +1740,13 @@ def handle_accuse_player(data):
 
 @socketio.on("cast_lynch_vote")
 def handle_cast_lynch_vote(data):
-    pid = session.get("player_id")
-    if game_instance.mode == "pass_and_play" and "actor_id" in data:
-        pid = data["actor_id"]
-    all_voted = game_instance.cast_lynch_vote(pid, data.get("vote"))
+    pid = get_authorized_actor(data, allow_pnp=True)
+    if not pid:
+        return
+    vote = data.get("vote")
+    if not isinstance(vote, str) or vote not in {"yes", "no"}:
+        return emit_validation_error()
+    all_voted = game_instance.cast_lynch_vote(pid, vote)
     if all_voted:
         resolve_lynch()
     elif game_instance.mode == "pass_and_play":
@@ -1391,11 +1757,24 @@ def handle_cast_lynch_vote(data):
 # --- Resolution ---
 
 
-def resolve_night():
-    events = game_instance.resolve_night_deaths()
+def resolve_night(expected_game=None):
+    resolving_game = expected_game or game_instance
+    if resolving_game is not game_instance:
+        return
+    token = resolving_game.begin_phase_resolution(PHASE_NIGHT)
+    if token is None:
+        return
+    try:
+        return _resolve_night(resolving_game)
+    finally:
+        resolving_game.finish_phase_resolution(token)
+
+
+def _resolve_night(resolving_game):
+    events = resolving_game.resolve_night_deaths()
 
     # Notify Lovers
-    for player_id in game_instance.players:
+    for player_id in resolving_game.players:
         send_cupid_info(player_id)
 
     # since deaths may also contain "armor_save"
@@ -1406,7 +1785,7 @@ def resolve_night():
 
             if event_type == "armor_save":
                 msg = {"key": "events.strangely", "variables": {}}
-                game_instance.message_history.append(msg)
+                resolving_game.message_history.append(msg)
                 socketio.emit("message", {"text": msg}, to=game["game_code"])
 
             elif event_type == "blocked":
@@ -1419,7 +1798,7 @@ def resolve_night():
                     )
             elif event_type == "announcement":
                 msg = event["message"]
-                game_instance.message_history.append(msg)
+                resolving_game.message_history.append(msg)
                 socketio.emit(
                     "message",
                     {"text": msg},
@@ -1455,56 +1834,56 @@ def resolve_night():
                     hist_msg["variables"]["reason"] = reason.replace(
                         "Honeypot retaliation: ", ""
                     )
-                game_instance.message_history.append(hist_msg)
+                resolving_game.message_history.append(hist_msg)
 
                 socketio.emit(
                     "night_result_kill",
                     {
                         "killed_player": event,
-                        "admin_only_chat": game_instance.admin_only_chat,
-                        "phase": game_instance.phase,
+                        "admin_only_chat": resolving_game.admin_only_chat,
+                        "phase": resolving_game.phase,
                         "message": hist_msg,
                     },
                     to=game["game_code"],
                 )
                 # msg werewolf teamates in case Wild_Child joined
-                living_wolves = game_instance.get_living_players("Werewolves")
+                living_wolves = resolving_game.get_living_players("Werewolves")
                 for werewolf in living_wolves:
                     send_werewolf_info(werewolf.id)
 
     if not actual_death:
         msg = {"key": "events.sun_rise_safe", "variables": {}}
-        game_instance.message_history.append(msg)
+        resolving_game.message_history.append(msg)
         socketio.emit("message", {"text": msg}, to=game["game_code"])
 
     socketio.sleep(GAME_DEFAULTS["PAUSE_DURATION"])
-    check_game_over_or_next_phase()
+    check_game_over_or_next_phase(resolving_game)
 
 
 @socketio.on("vote_to_end_day")
 def handle_vote_to_end_day(data=None):
-    pid = session.get("player_id")
-    # PnP Override
-    if data and game_instance.mode == "pass_and_play" and "actor_id" in data:
-        pid = data["actor_id"]
-
-    # 1. Get the Engine Player Object
-    engine_player = game_instance.players.get(pid)
-    if not engine_player:
+    if data is None:
+        data = {}
+    pid = get_authorized_actor(data, allow_pnp=True)
+    if not pid:
         return
 
-    # 2. Strict Liveness Check
-    # Only ALIVE players should control the day/night cycle speed.
-    if not engine_player.is_alive:
-        return
-    if game_instance.phase != PHASE_ACCUSATION:
-        return
+    voting_game = game_instance
+    with voting_game.lock:
+        engine_player = voting_game.players.get(pid)
+        if (
+            voting_game is not game_instance
+            or not engine_player
+            or not engine_player.is_alive
+            or voting_game.phase != PHASE_ACCUSATION
+            or voting_game.is_phase_resolving(PHASE_ACCUSATION)
+        ):
+            return
 
-    # 4. Add Vote (Manually add to the set)
-    game_instance.end_day_votes.add(pid)
-    living_count = len(game_instance.get_living_players())
-    votes_count = len(game_instance.end_day_votes)
-    majority = votes_count > (living_count / 2)
+        voting_game.end_day_votes.add(pid)
+        living_count = len(voting_game.get_living_players())
+        votes_count = len(voting_game.end_day_votes)
+        majority = votes_count > (living_count / 2)
     emit(
         "end_day_vote_update",
         {"count": votes_count, "total": living_count},
@@ -1521,14 +1900,13 @@ def handle_vote_to_end_day(data=None):
 @socketio.on("vote_for_rematch")
 def handle_vote_for_rematch():
     global game_instance
-    player_id, p = get_player_by_sid(request.sid)
+    player_id, p = get_request_player()
     if not p or game["game_state"] != PHASE_GAME_OVER:
         return
     if player_id not in game_instance.rematch_votes:
         game_instance.rematch_votes.add(player_id)
-        num_votes = len(game_instance.rematch_votes)
-        total_players = len(game["players"])
-        if num_votes > total_players / 2 or p.is_admin:
+        num_votes, total_players = get_rematch_vote_status()
+        if num_votes > total_players / 2 or is_request_admin():
             old_settings = getattr(game_instance, "settings", {})
             game_instance = Game("main_game", settings=old_settings)
             game_instance.players = {}
