@@ -484,10 +484,18 @@ class Honeypot(Villager):
                 target_player_obj = next(
                     (p for p in game_context["players"] if p.id == target_id), None
                 )
-                msg = "Honeypot Retaliation"
+                msg = {"key": "events.honeypot_retaliation_generic", "variables": {}}
                 if target_player_obj:
-                    msg = f"Honeypot retaliation: <strong>{target_player_obj.name}</strong> selected from lynch mob. They were a {target_player_obj.role.name_key}!"
-                    print(msg)
+                    msg = {
+                        "key": "events.honeypot_retaliation_lynch",
+                        "variables": {
+                            "name": target_player_obj.name,
+                            "role": target_player_obj.role.name_key,
+                        },
+                    }
+                    print(
+                        f"Honeypot retaliation selected {target_player_obj.name} from the lynch mob."
+                    )
                 return {"kill": target_id, "reason": msg}
 
         # 2. Werewolf Retaliation: Kill a random Werewolf
@@ -499,10 +507,14 @@ class Honeypot(Villager):
             ]
             if wolves:
                 target = random.choice(wolves)
-                msg = (
-                    f"Honeypot retaliation: {target.name} selected from werewolf pack."
-                )
-                print(msg)
+                msg = {
+                    "key": "events.honeypot_retaliation_wolf",
+                    "variables": {
+                        "name": target.name,
+                        "role": target.role.name_key,
+                    },
+                }
+                print(f"Honeypot retaliation selected {target.name} from the werewolf pack.")
                 return {"kill": target.id, "reason": msg}
 
         # 3. Witch Retaliation: Kill the Witch
@@ -514,8 +526,14 @@ class Honeypot(Villager):
             ]
             if witches:
                 target = random.choice(witches)
-                msg = f"Honeypot retaliation: {target.name} is taking an acid bath."
-                print(msg)
+                msg = {
+                    "key": "events.honeypot_retaliation_witch",
+                    "variables": {
+                        "name": target.name,
+                        "role": target.role.name_key,
+                    },
+                }
+                print(f"Honeypot retaliation targeted Witch {target.name}.")
                 return {"kill": target.id, "reason": msg}
 
         # 4. Serial Killer Retaliation: Kill the Serial Killer
@@ -527,10 +545,14 @@ class Honeypot(Villager):
             ]
             if killers:
                 target = random.choice(killers)
-                msg = (
-                    f"Honeypot retaliation: {target.name} is sleeping with the fishies."
-                )
-                print(msg)
+                msg = {
+                    "key": "events.honeypot_retaliation_serial",
+                    "variables": {
+                        "name": target.name,
+                        "role": target.role.name_key,
+                    },
+                }
+                print(f"Honeypot retaliation targeted Serial Killer {target.name}.")
                 return {"kill": target.id, "reason": msg}
 
         return {}
@@ -744,7 +766,10 @@ class Mayor(Villager):
             self.next_mayor_id = target_player_obj.id
             return {
                 "type": "announcement",
-                "message": f"🗳️ Next mayor selected: <strong>{target_player_obj.name}</strong> promoted to <strong>Mayor-Elect!</strong>",
+                "message": {
+                    "key": "events.mayor_successor_selected",
+                    "variables": {"name": target_player_obj.name},
+                },
             }
 
         return {"action": "villager_vote", "target": target_player_obj.id}
@@ -820,7 +845,10 @@ class Mayor(Villager):
                 # announce to all next mayor name has been elected
             return {
                 "type": "announcement",
-                "message": f"🎩 The Mayor is dead! Long live Mayor <strong>{new_mayor.name}</strong>!",
+                "message": {
+                    "key": "events.mayor_successor_promoted",
+                    "variables": {"name": new_mayor.name},
+                },
             }
         return {}
 
@@ -1060,8 +1088,8 @@ class Sorcerer(Role):
             ROLE_RANDOM_SEER,
             ROLE_REVEALER,
         ]:
-            return "Magic User"
-        return "non-Magic User"
+            return "Magic_User"
+        return "Non_Magic_User"
 
     def night_action(self, player_obj, target_player_obj, game_context):
         result = self.investigate(target_player_obj)

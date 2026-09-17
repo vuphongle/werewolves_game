@@ -1,11 +1,12 @@
 // Version 5.1.0
 let translations = {};
-const currentLang = window.userLang || "en";
+let currentLang = window.userLang || "vi";
 
 // 1. Load the appropriate JSON file
 async function loadTranslations() {
   try {
     const response = await fetch(`/static/${currentLang}.json`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     translations = await response.json();
     console.log(`Loaded translations for ${currentLang}`);
     updateStaticUIText(); // Update buttons immediately
@@ -15,9 +16,20 @@ async function loadTranslations() {
     }
   } catch (err) {
     console.error("Failed to load translations:", err);
+    if (currentLang !== "vi") {
+      try {
+        const fallbackResponse = await fetch("/static/vi.json");
+        if (!fallbackResponse.ok)
+          throw new Error(`HTTP ${fallbackResponse.status}`);
+        translations = await fallbackResponse.json();
+        currentLang = "vi";
+        updateStaticUIText();
+      } catch (fallbackErr) {
+        console.error("Failed to load Vietnamese fallback:", fallbackErr);
+      }
+    }
   }
 }
-loadTranslations();
 
 // 2. Translator Helper
 function t(key, defaultText) {
@@ -27,7 +39,7 @@ function t(key, defaultText) {
     let text = t(key.key, defaultText);
     if (key.variables) {
       for (const [k, v] of Object.entries(key.variables)) {
-        text = text.replace(`{${k}}`, v);
+        text = text.replace(`{${k}}`, translateVariable(v));
       }
     }
     return text;
@@ -42,8 +54,34 @@ function t(key, defaultText) {
   return text || defaultText || key;
 }
 
+function translateVariable(value) {
+  if (value && typeof value === "object" && value.key) return t(value);
+  if (typeof value !== "string") return value;
+
+  if (translations.roles?.[value]?.name) return translations.roles[value].name;
+  if (translations.teams?.[value]) return translations.teams[value];
+
+  const displayKeys = {
+    Lobby: "ui.lobby.title",
+    Night: "ui.game.night_phase_title",
+    Accusation: "ui.pnp.hub_day",
+    Lynch_Vote: "ui.pnp.hub_vote",
+    Game_Over: "ui.game.game_over_title",
+    standard: "ui.lobby.standard_mode",
+    pass_and_play: "ui.lobby.pnp_mode",
+  };
+  const key = displayKeys[value] || (value.includes(".") ? value : null);
+  if (!key) return value;
+
+  const translated = t(key);
+  return translated === key ? value : translated;
+}
+
 // 3. Update Static HTML
 function updateStaticUIText() {
+  document.documentElement.lang = currentLang;
+  document.title = t("ui.lobby.title");
+
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
     const text = t(key);
@@ -108,7 +146,7 @@ const SPECIAL_WEREWOLVES = [
   "Alpha_Werewolf",
 ];
 
-const socket = io();
+const socket = io({ autoConnect: false });
 // Ensure backend renders 'player_id' into the template
 let isPlayerAdmin = false;
 
@@ -256,7 +294,7 @@ async function loadRoles() {
   } catch (err) {
     console.error("Failed to load roles", err);
     document.getElementById("roles-grid").innerHTML =
-      '<p style="color:crimson">Error loading roles</p>';
+      `<p style="color:crimson">${t("ui.lobby.roles_not_loaded")}</p>`;
   }
 }
 // --- 2. Socket Events ---
@@ -380,19 +418,27 @@ socket.on("update_player_list", (data) => {
       adminBtn.textContent = "🪄";
       adminBtn.className = "exclude-btn"; // Reuse style or add new class
       adminBtn.style.marginRight = "5px";
-      adminBtn.title = "Make Admin";
+      adminBtn.title = t("ui.lobby.make_admin_title");
       adminBtn.onclick = (e) => {
         e.stopPropagation();
-        if (confirm(`Make ${player.name} the Admin?`)) {
+        if (
+          confirm(
+            t({
+              key: "ui.lobby.confirm_make_admin",
+              variables: { name: player.name },
+            }),
+          )
+        ) {
           socket.emit("admin_transfer_admin", { target_id: player.id });
         }
       };
       li.appendChild(adminBtn);
 
       const excludeBtn = document.createElement("span");
-      excludeBtn.textContent = t("ui.lobby.exclude_btn", "Exclude");
+      excludeBtn.textContent = t("ui.lobby.exclude_btn");
       excludeBtn.className = "exclude-btn";
       excludeBtn.dataset.playerId = player.id;
+      excludeBtn.dataset.playerName = player.name;
       li.appendChild(excludeBtn);
     }
     playerList.appendChild(li);
@@ -415,7 +461,7 @@ socket.on("game_started", () => {
 });
 
 socket.on("force_kick", () => {
-  alert("You have been dropped from the lobby.");
+  alert(t("ui.lobby.alert_dropped"));
   window.location.href = "/";
 });
 
@@ -430,18 +476,19 @@ socket.on("admin_timers_updated", (data) => {
 });
 
 socket.on("force_relogin", (data) => {
-  alert("New code set. Re-login required.");
+  alert(t("ui.lobby.alert_code_set"));
   window.location.href = "/";
 });
 
-socket.on("message", (data) => alert(data.text));
+socket.on("message", (data) => alert(t(data.text)));
 
-socket.on("error", (data) => alert("Error: " + data.message));
+socket.on("error", (data) => alert(t(data.message)));
 
 socket.on("new_message", (data) => {
   if (data.channel === "lobby" || data.channel === "announcement") {
     const messageEl = document.createElement("div");
-    messageEl.innerHTML = DOMPurify.sanitize(data.text);
+    const label = data.label_key ? `<strong>${t(data.label_key)}</strong> ` : "";
+    messageEl.innerHTML = DOMPurify.sanitize(`${label}${t(data.text)}`);
     if (data.channel === "announcement")
       messageEl.classList.add("announcement");
     chatMessages.prepend(messageEl);
@@ -522,7 +569,7 @@ function selectRandomRoles() {
     // 2. Get all checkboxes
     const checkboxes = Array.from(document.querySelectorAll(".role-checkbox"));
     if (checkboxes.length === 0) {
-      alert("Roles are not loaded yet. Please wait.");
+      alert(t("ui.lobby.roles_not_loaded"));
       return;
     }
 
@@ -595,11 +642,11 @@ function selectRandomRoles() {
         `Roles randomized. Count: ${bestSet.length}. Balance: ${minDiff.toFixed(1)}`,
       );
     } else {
-      alert("Could not generate a valid role set.");
+      alert(t("ui.lobby.random_roles_failed"));
     }
   } catch (err) {
     console.error("Error in selectRandomRoles:", err);
-    alert("An error occurred generating roles. Check console.");
+    alert(t("ui.lobby.random_roles_error"));
   }
 }
 
@@ -680,7 +727,7 @@ document.getElementById("set-code-btn").onclick = () => {
     .value.trim()
     .toUpperCase();
   if (newCode) socket.emit("admin_set_new_code", { new_code: newCode });
-  else alert("Please enter a new code.");
+  else alert(t("ui.lobby.enter_new_code"));
 };
 
 document.getElementById("toggle-chat-btn").onclick = () => {
@@ -699,14 +746,21 @@ document.getElementById("set-timers-btn").onclick = () => {
 // Handle Exclude Click
 document.getElementById("player-list").addEventListener("click", function (e) {
   if (e.target && e.target.className === "exclude-btn") {
-    excludePlayer(e.target.dataset.playerId);
+    excludePlayer(e.target.dataset.playerId, e.target.dataset.playerName);
   }
 });
 
 // --- 4. Helpers & Utilities ---
 
-function excludePlayer(playerId) {
-  if (confirm("Exclude this player?")) {
+function excludePlayer(playerId, playerName) {
+  if (
+    confirm(
+      t({
+        key: "ui.lobby.confirm_exclude",
+        variables: { name: playerName },
+      }),
+    )
+  ) {
     socket.emit("admin_exclude_player", { player_id: playerId });
   }
 }
@@ -714,10 +768,10 @@ function excludePlayer(playerId) {
 function setChatMode(isAdminOnly) {
   if (isAdminOnly && !isPlayerAdmin) {
     chatSendBtn.disabled = true;
-    chatInput.placeholder = t("ui.lobby.chat_restricted", "Chat is admin-only");
+    chatInput.placeholder = t("ui.lobby.chat_restricted");
   } else {
     chatSendBtn.disabled = false;
-    chatInput.placeholder = t("ui.lobby.chat_placeholder", "Type a message...");
+    chatInput.placeholder = t("ui.lobby.chat_placeholder");
   }
 }
 
@@ -729,10 +783,7 @@ function updateRoleSummary() {
 
   // 1. Basic Check
   if (numPlayers < 1) {
-    summaryElement.textContent = t(
-      "ui.lobby.waiting_text",
-      "Waiting for players...",
-    );
+    summaryElement.textContent = t("ui.lobby.waiting_text");
     summaryElement.style.color = "darkgray";
     return;
   }
@@ -765,10 +816,7 @@ function updateRoleSummary() {
   if (totalSlotsNeeded > numPlayers) {
     const diff = totalSlotsNeeded - numPlayers;
 
-    let warningMsg = t(
-      "ui.lobby.roles_warning",
-      "⚠️ Too many roles selected! Deselect {count} role(s).",
-    );
+    let warningMsg = t("ui.lobby.roles_warning");
     warningMsg = warningMsg.replace("{count}", diff);
 
     summaryElement.innerHTML = `<strong>${warningMsg}</strong>`;
@@ -809,9 +857,11 @@ function updateRoleSummary() {
   for (const [role, count] of Object.entries(finalRoleCounts)) {
     const key = role.replace(/_/g, " ");
     let displayRole = ROLE_DATA[key] ? ROLE_DATA[key].displayName : key;
-    if (count > 1) displayRole += "s";
+    if (count > 1 && currentLang === "en") displayRole += "s";
     if (count > 0)
       outputParts.push(count === 1 ? displayRole : `${count} ${displayRole}`);
   }
   summaryElement.textContent = outputParts.join(", ");
 }
+
+loadTranslations().finally(() => socket.connect());

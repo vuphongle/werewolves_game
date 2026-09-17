@@ -5,15 +5,16 @@ const PHASE_ACCUSATION = "Accusation";
 const PHASE_LYNCH = "Lynch_Vote";
 const PHASE_GAME_OVER = "Game_Over";
 
-const socket = io();
+const socket = io({ autoConnect: false });
 
 let translations = {};
-let currentLang = window.userLang || "en";
+let currentLang = window.userLang || "vi";
 
 // 1. Load the appropriate JSON file
 async function loadTranslations() {
   try {
     const response = await fetch(`/static/${currentLang}.json`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     translations = await response.json();
     console.log(`Loaded translations for ${currentLang}`);
 
@@ -32,14 +33,27 @@ async function loadTranslations() {
     }
   } catch (err) {
     console.error("Failed to load translations:", err);
+    if (currentLang !== "vi") {
+      try {
+        const fallbackResponse = await fetch("/static/vi.json");
+        if (!fallbackResponse.ok)
+          throw new Error(`HTTP ${fallbackResponse.status}`);
+        translations = await fallbackResponse.json();
+        currentLang = "vi";
+        updateStaticUIText();
+      } catch (fallbackErr) {
+        console.error("Failed to load Vietnamese fallback:", fallbackErr);
+      }
+    }
   }
 }
-loadTranslations();
 
 function t(data) {
   // If it's already a string, return it (backward compatibility)
   if (typeof data === "string") return data;
-  if (!data || !data.key) return "Error: Unknown message";
+  if (!data || !data.key) {
+    return translations.ui?.game?.unknown_message || "Không xác định được thông báo";
+  }
 
   // Traverse JSON keys (e.g., "events.night_kill")
   const keys = data.key.split(".");
@@ -53,45 +67,32 @@ function t(data) {
   let text = template;
   if (data.variables) {
     for (const [varName, varValue] of Object.entries(data.variables)) {
-      let insertVal = varValue;
-
-      // 1. Role Name Check (Existing)
-      if (
-        translations.roles &&
-        translations.roles[varValue] &&
-        translations.roles[varValue].name
-      ) {
-        insertVal = translations.roles[varValue].name;
-      }
-
-      // 2. Recursive Translation Check
-      else if (typeof insertVal === "string" && insertVal.includes(".")) {
-        const translated = t({ key: insertVal });
-        if (translated !== insertVal) {
-          insertVal = translated;
-        }
-      }
-
-      // [FIX] REMOVED summary logic from here (it was inside the loop!)
-
-      text = text.replace(`{${varName}}`, insertVal);
+      text = text.replace(`{${varName}}`, translateVariable(varValue));
     }
   }
 
   // [FIX] MOVED summary logic here (Outside the variables loop)
   // This ensures it runs even if there are no variables, and only runs once.
   if (data.summary) {
-    const lblYes = t({ key: "ui.game.voted_yes" }) || "Voted Yes:";
-    const lblNo = t({ key: "ui.game.voted_no" }) || "Voted No:";
+    const translateSummaryEntry = (entry) => {
+      if (entry === "Ghost") return t({ key: "ui.game.ghost_name" });
+      if (typeof entry === "string" && entry.includes(".")) {
+        const translated = t({ key: entry });
+        if (translated !== entry) return translated;
+      }
+      return entry;
+    };
+    const lblYes = t({ key: "ui.game.voted_yes" });
+    const lblNo = t({ key: "ui.game.voted_no" });
 
-    const nobodyTxt = t({ key: "ui.game.nobody" }) || "Nobody";
+    const nobodyTxt = t({ key: "ui.game.nobody" });
     const yesList =
       data.summary.yes && data.summary.yes.length
-        ? data.summary.yes.join(", ")
+        ? data.summary.yes.map(translateSummaryEntry).join(", ")
         : nobodyTxt;
     const noList =
       data.summary.no && data.summary.no.length
-        ? data.summary.no.join(", ")
+        ? data.summary.no.map(translateSummaryEntry).join(", ")
         : nobodyTxt;
 
     text += `<div class="vote-summary">${lblYes} ${yesList}<br>${lblNo} ${noList}</div>`;
@@ -100,7 +101,33 @@ function t(data) {
   return text;
 }
 
+function translateVariable(value) {
+  if (value && typeof value === "object" && value.key) return t(value);
+  if (typeof value !== "string") return value;
+
+  if (translations.roles?.[value]?.name) return translations.roles[value].name;
+  if (translations.teams?.[value]) return translations.teams[value];
+
+  const displayKeys = {
+    Lobby: "ui.lobby.title",
+    Night: "ui.game.night_phase_title",
+    Accusation: "ui.pnp.hub_day",
+    Lynch_Vote: "ui.pnp.hub_vote",
+    Game_Over: "ui.game.game_over_title",
+    standard: "ui.lobby.standard_mode",
+    pass_and_play: "ui.lobby.pnp_mode",
+  };
+  const key = displayKeys[value] || (value.includes(".") ? value : null);
+  if (!key) return value;
+
+  const translated = t({ key });
+  return translated === key ? value : translated;
+}
+
 function updateStaticUIText() {
+  document.documentElement.lang = currentLang;
+  document.title = t({ key: "ui.game.page_title" });
+
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
     const text = t({ key: key });
@@ -149,7 +176,7 @@ let hasActed = new Set(),
   myNightMetadata = null,
   lastSeerResult = null,
   myLynchVote = null,
-  currentLynchTargetName = "Unknown",
+  currentLynchTargetName = "",
   mySleepVote = false;
 let totalAccusationDuration = 90,
   sleepButtonTimeout = null;
@@ -227,10 +254,8 @@ function updateAdminControls() {
     els.adminControls.style.display = "block";
     const pauseBtn = document.getElementById("admin-pause-timer-btn");
     if (pauseBtn) {
-      const resumeText =
-        t({ key: "ui.game.resume_timers_btn" }) || "Resume Timers ▶️";
-      const pauseText =
-        t({ key: "ui.game.pause_timers_btn" }) || "Pause Timers ⏸️";
+      const resumeText = t({ key: "ui.game.resume_timers_btn" });
+      const pauseText = t({ key: "ui.game.pause_timers_btn" });
       pauseBtn.textContent = timersDisabled ? resumeText : pauseText;
       pauseBtn.style.backgroundColor = timersDisabled ? "orangered" : "";
     }
@@ -251,22 +276,20 @@ function setChatMode(isAdminOnly, phase) {
   }
 
   let isChatDisabled = isAdminOnly && !isAdmin;
-  let placeholder =
-    t({ key: "ui.game.chat_restricted_placeholder" }) || "Chat is restricted.";
+  let placeholder = t({ key: "ui.game.chat_restricted_placeholder" });
 
   if (phase === PHASE_NIGHT && !isAdmin) {
-    placeholder =
-      t({ key: "ui.game.chat_night_placeholder" }) || "sleepy quiet time...zzz";
+    placeholder = t({ key: "ui.game.chat_night_placeholder" });
     isChatDisabled = true;
   } else if (!isChatDisabled) {
     els.gameChatTitle.textContent = !isAlive
-      ? t({ key: "ui.game.ghost_chat_title" }) || "Ghost Chat 👻"
-      : t({ key: "ui.game.living_chat_title" }) || "Living Chat";
+      ? t({ key: "ui.game.ghost_chat_title" })
+      : t({ key: "ui.game.living_chat_title" });
     placeholder = !isAlive
-      ? t({ key: "ui.game.chat_whisper_placeholder" }) || "Whisper..."
+      ? t({ key: "ui.game.chat_whisper_placeholder" })
       : translations.ui && translations.ui.lobby
         ? translations.ui.lobby.chat_placeholder
-        : "Type a message...";
+        : t({ key: "ui.lobby.chat_placeholder" });
   }
 
   [els.gameChatSendBtn, els.gameOverChatSendBtn].forEach(
@@ -374,14 +397,14 @@ function renderHub(allPlayers, phase) {
 
       const safeName = p.name.replace(/'/g, "\\'");
       const clickAction = isInteractive
-        ? `startConfirmFlow('${p.id}', '${safeName}', '${p.language || "en"}')`
+        ? `startConfirmFlow('${p.id}', '${safeName}', '${p.language || "vi"}')`
         : "";
 
       let label = p.name;
       if (!p.is_alive) label += " 👻";
       if (hasActed.has(p.id)) {
         // [CHANGED] Use translation for "(Done)"
-        const doneText = t({ key: "ui.pnp.done_title" }) || "Done";
+        const doneText = t({ key: "ui.pnp.done_title" });
         label += ` (${doneText})`;
       }
 
@@ -484,7 +507,7 @@ socket.on("pnp_state_sync", (data) => {
   const btnMain = document.getElementById("overlay-btn-main");
   if (btnMain) {
     btnMain.disabled = false;
-    btnMain.innerText = "Confirm";
+    btnMain.innerText = t({ key: "ui.pnp.btn_ready" });
   }
 
   els.pnpHub.style.display = "none";
@@ -618,7 +641,7 @@ function populateSelect(
 ) {
   const select = document.getElementById(elementId);
   if (!select) return;
-  const nobodyText = t({ key: "ui.game.nobody" }) || "Nobody";
+  const nobodyText = t({ key: "ui.game.nobody" });
   select.innerHTML = includeNobody
     ? `<option value="">${nobodyText}</option>`
     : "";
@@ -637,10 +660,7 @@ function submitNightAction(uiData) {
   const val2 = select2 ? select2.value : null;
 
   if (val1 && val2 && val1 === val2 && val1 !== "Nobody") {
-    alert(
-      t({ key: "ui.game.cannot_select_same" }) ||
-        "Cannot select the same person twice!",
-    );
+    alert(t({ key: "ui.game.cannot_select_same" }));
     return;
   }
 
@@ -660,11 +680,11 @@ function submitNightAction(uiData) {
   const p1 =
     select && select.selectedIndex >= 0
       ? select.options[select.selectedIndex].text
-      : "Nobody";
+      : t({ key: "ui.game.nobody" });
   const p2 =
     select2 && select2.selectedIndex >= 0
       ? select2.options[select2.selectedIndex].text
-      : "Nobody";
+      : t({ key: "ui.game.nobody" });
 
   if (uiData.template && uiData.template.success) {
     let rawText = t({ key: uiData.template.success });
@@ -714,7 +734,7 @@ function renderNightUI(uiData, containerId = null) {
       t({
         key: uiData.template.header,
         variables: uiData.template.variables,
-      }) || "Action Required";
+      });
 
     let html = `<h4>${headerText}</h4>`;
 
@@ -740,7 +760,7 @@ function renderNightUI(uiData, containerId = null) {
     if (isMultiTarget) {
       html += `<select id="action-select-2"></select> `;
     }
-    const btnText = t({ key: uiData.template.button }) || "Submit";
+    const btnText = t({ key: uiData.template.button });
     html += `<button id="action-btn">${btnText}</button>`;
 
     // Render to DOM
@@ -790,8 +810,10 @@ function renderNightUI(uiData, containerId = null) {
 
     // 2. Resolve Variable Names for Feedback Message
     const targetObj = allPlayers.find((p) => p.id === myPhaseTargetId);
-    let targetName = targetObj ? targetObj.name : "Nobody";
-    let secondaryName = "Unknown";
+    let targetName = targetObj
+      ? targetObj.name
+      : t({ key: "ui.game.nobody" });
+    let secondaryName = t({ key: "ui.game.nobody" });
 
     if (myNightMetadata) {
       if (myNightMetadata.potion) {
@@ -812,12 +834,12 @@ function renderNightUI(uiData, containerId = null) {
       } else if (myNightMetadata.target_id2) {
         // CUPID/BACKLASH: Resolve 2nd player name
         const t2 = allPlayers.find((p) => p.id === myNightMetadata.target_id2);
-        secondaryName = t2 ? t2.name : "Nobody";
+        secondaryName = t2 ? t2.name : t({ key: "ui.game.nobody" });
       }
     }
 
     // 3. Build & Translate Success Message
-    let successMsg = `<p>${t({ key: "ui.pnp.done_msg" }) || "Action Submitted"}</p>`;
+    let successMsg = `<p>${t({ key: "ui.pnp.done_msg" })}</p>`;
 
     if (uiData && uiData.template && uiData.template.success) {
       let rawText = t({ key: uiData.template.success });
@@ -849,7 +871,7 @@ function renderAccusationUI(currentDuration) {
 
   let html = "";
   if (!isAlive && ghostModeActive) {
-    html += "<h4 style='color: royalblue'>👻 Ghost Mode Active: ...</h4>";
+    html += `<h4 style='color: royalblue'>${t({ key: "ui.game.ghost_active" })}</h4>`;
   }
 
   if (myPhaseTargetId !== null)
@@ -859,7 +881,7 @@ function renderAccusationUI(currentDuration) {
       html += `<h3 style="color: royalblue; font-style: italic;">${ghostFail}</h3><p>${voteFail}</p>`;
     } else {
       const target = allPlayers.find((p) => p.id === myPhaseTargetId);
-      const tName = target ? target.name : "Nobody";
+      const tName = target ? target.name : t({ key: "ui.game.nobody" });
       const accusedMsg = t({
         key: "ui.game.you_accused",
         variables: { name: tName },
@@ -869,7 +891,7 @@ function renderAccusationUI(currentDuration) {
     }
   else {
     const prompt = t({ key: "ui.game.accusation_prompt" });
-    const btnAccuse = t({ key: "actions.accuse" }) || "Accuse";
+    const btnAccuse = t({ key: "actions.accuse" });
     html += `
                 <h4>${prompt}</h4>
                 <select id="accuse-select"></select>
@@ -946,23 +968,22 @@ function renderLynchVoteUI() {
     html += `<h3 style="color: royalblue; font-style: italic;">${t({ key: "ui.game.ghost_fail" })}</h3><p>${t({ key: "ui.game.vote_failed" })}</p>`;
     els.action.innerHTML = html;
   } else if (myLynchVote === "yes" || myLynchVote === "no") {
-    const votedTxt = translations.ui.game.voted_btn || "Voted!";
-    const waitTxt =
-      t({ key: "ui.game.waiting_result" }) || "Waiting for result...";
+    const votedTxt = t({ key: "ui.game.voted_btn" });
+    const waitTxt = t({ key: "ui.game.waiting_result" });
 
     // [FIX] Translate the vote choice
     let voteDisplay = "";
     if (myLynchVote === "yes") {
-      voteDisplay = t({ key: "actions.lynch_yes" }) || "YES";
+      voteDisplay = t({ key: "actions.lynch_yes" });
     } else {
-      voteDisplay = t({ key: "actions.lynch_no" }) || "NO";
+      voteDisplay = t({ key: "actions.lynch_no" });
     }
 
     els.action.innerHTML = `<h3>${votedTxt} <span style="color:${myLynchVote === "yes" ? "green" : "red"}">${voteDisplay}</span></h3><p>${waitTxt}</p>`;
   } else {
     // If not voted, SHOW BUTTONS
-    const yesTxt = t({ key: "actions.lynch_yes" }) || "YES";
-    const noTxt = t({ key: "actions.lynch_no" }) || "NO";
+    const yesTxt = t({ key: "actions.lynch_yes" });
+    const noTxt = t({ key: "actions.lynch_no" });
     // [CHANGED]
     const prompt = t({
       key: "ui.game.lynch_prompt",
@@ -1024,7 +1045,7 @@ function startTimer(endTimeStamp) {
   if (timerInterval) clearInterval(timerInterval);
   els.timer.textContent = "";
   if (timersDisabled) {
-    els.timer.textContent = t({ key: "ui.game.timer_disabled" }) || "Timer ♾️";
+    els.timer.textContent = t({ key: "ui.game.timer_disabled" });
     return;
   }
   if (!endTimeStamp) return;
@@ -1033,8 +1054,8 @@ function startTimer(endTimeStamp) {
     const timeLeft = Math.max(0, Math.ceil(endTimeStamp - Date.now() / 1000));
     const min = Math.floor(timeLeft / 60),
       sec = Math.floor(timeLeft % 60);
-    const label = t({ key: "ui.game.timer_left" }) || "Time left: ";
-    const done = t({ key: "ui.game.time_up" }) || "Time's up!";
+    const label = t({ key: "ui.game.timer_left" });
+    const done = t({ key: "ui.game.time_up" });
 
     els.timer.textContent = `${label}${min}:${("0" + sec).slice(-2)}`;
     if (timeLeft <= 0) {
@@ -1082,19 +1103,13 @@ function showGameOverScreen(data, rematchInfo = {}) {
 
     // [CHANGED] Translate Role Name
     const roleKey = p.role.replace(/ /g, "_");
-    const roleName = t({ key: `roles.${roleKey}.name` }) || p.role;
+    const roleName = t({ key: `roles.${roleKey}.name` });
 
-    // [CHANGED] Use a sentence template for "Bob was a Villager"
-    // Fallback included if key is missing
+    // Use a sentence template for the translated final-role line.
     let lineText = t({
       key: "ui.game.final_role_item",
       variables: { name: p.name, role: roleName, badges: badges },
     });
-
-    // Fallback if translation key is missing
-    if (lineText === "ui.game.final_role_item") {
-      lineText = `<strong>${p.name}</strong>${badges} was a ${roleName}`;
-    }
 
     list.innerHTML += `<li>${lineText}</li>`;
   });
@@ -1107,12 +1122,12 @@ function showGameOverScreen(data, rematchInfo = {}) {
   btn.onclick = (e) => {
     socket.emit("vote_for_rematch");
     e.target.disabled = true;
-    e.target.textContent = t({ key: "ui.game.voted_btn" }) || "Voted!";
+    e.target.textContent = t({ key: "ui.game.voted_btn" });
   };
   btn.disabled = rematchInfo.hasVoted;
 
-  const btnText = t({ key: "ui.game.return_lobby_btn" }) || "Vote to Return";
-  const votedText = t({ key: "ui.game.voted_btn" }) || "Voted!";
+  const btnText = t({ key: "ui.game.return_lobby_btn" });
+  const votedText = t({ key: "ui.game.voted_btn" });
   btn.textContent = rematchInfo.hasVoted ? votedText : btnText;
 
   const status = document.getElementById("rematch-vote-status");
@@ -1183,7 +1198,8 @@ socket.on("game_state_sync", (data) => {
   mySleepVote = data.my_sleep_vote;
   myLynchVote = data.my_lynch_vote;
   ghostModeActive = data.ghost_mode_active;
-  currentLynchTargetName = data.lynch_target_name || "Unknown";
+  currentLynchTargetName =
+    data.lynch_target_name || t({ key: "ui.game.nobody" });
   if (data.total_accusation_duration)
     totalAccusationDuration = data.total_accusation_duration;
 
@@ -1269,11 +1285,11 @@ socket.on("game_state_sync", (data) => {
 socket.on("phase_change", (data) => {
   let phaseName = data.phase;
   if (data.phase === "Lynch_Vote")
-    phaseName = t({ key: "ui.pnp.hub_vote" }) || "Lynch Vote";
+    phaseName = t({ key: "ui.pnp.hub_vote" });
   else if (data.phase === "Accusation")
-    phaseName = t({ key: "ui.pnp.hub_day" }) || "Accusation";
+    phaseName = t({ key: "ui.pnp.hub_day" });
   else if (data.phase === "Night")
-    phaseName = t({ key: "ui.game.night_phase_title" }) || "Night";
+    phaseName = t({ key: "ui.game.night_phase_title" });
 
   const msg = t({
     key: "events.phase_change_msg",
@@ -1293,7 +1309,10 @@ socket.on("message", (data) => {
 
 socket.on("new_message", (data) => {
   const div = document.createElement("div");
-  div.innerHTML = DOMPurify.sanitize(data.text);
+  const label = data.label_key
+    ? `<strong>${t({ key: data.label_key })}</strong> `
+    : "";
+  div.innerHTML = DOMPurify.sanitize(`${label}${t(data.text)}`);
   const target = document.getElementById("game-chat-messages");
   const overTarget = document.getElementById("game-over-chat-messages");
 
@@ -1464,7 +1483,10 @@ socket.on("game_over", (data) => {
 socket.on("rematch_vote_update", (data) => {
   const s = document.getElementById("rematch-vote-status");
   if (s)
-    s.textContent = `${data.count} / ${data.total} players have voted to return.`;
+    s.textContent = t({
+      key: "ui.game.rematch_status",
+      variables: { count: data.count, total: data.total },
+    });
 });
 
 socket.on("redirect_to_lobby", () => {
@@ -1477,7 +1499,12 @@ socket.on("force_relogin", (data) => {
 });
 
 socket.on("error", (data) => {
-  alert(t({ key: "ui.game.alert_error", variables: { msg: data.message } }));
+  alert(
+    t({
+      key: "ui.game.alert_error",
+      variables: { msg: t(data.message) },
+    }),
+  );
 });
 
 function updatePlayerListView(accusationCounts = {}) {
@@ -1488,7 +1515,7 @@ function updatePlayerListView(accusationCounts = {}) {
 
     const isMe = p.id === myPlayerId;
 
-    let youTag = isMe ? ` ${t({ key: "ui.lobby.you_suffix" }) || "(You)"}` : "";
+    let youTag = isMe ? ` ${t({ key: "ui.lobby.you_suffix" })}` : "";
     let nameDisplay = `${p.name}${youTag}`;
 
     let html = `<span>${nameDisplay}</span>`;
@@ -1516,9 +1543,20 @@ function updatePlayerListView(accusationCounts = {}) {
       adminBtn.innerText = "🪄";
       adminBtn.style.cursor = "pointer";
       adminBtn.style.marginLeft = "10px";
-      adminBtn.title = "Transfer Admin";
+      adminBtn.title = t({ key: "ui.game.transfer_admin_title" });
       adminBtn.onclick = function () {
-        if (confirm(`Transfer Admin powers to ${p.name}?`)) {
+        const admin = allPlayers.find((player) => player.id === myPlayerId);
+        if (
+          confirm(
+            t({
+              key: "ui.game.confirm_transfer_admin",
+              variables: {
+                from_name: admin ? admin.name : "",
+                to_name: p.name,
+              },
+            }),
+          )
+        ) {
           socket.emit("admin_transfer_admin", { target_id: p.id });
         }
       };
@@ -1556,3 +1594,5 @@ if (adminPauseBtn)
   adminPauseBtn.addEventListener("click", () =>
     socket.emit("admin_set_timers", { timers_disabled: !timersDisabled }),
   );
+
+loadTranslations().finally(() => socket.connect());

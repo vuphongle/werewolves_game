@@ -21,6 +21,7 @@ body {
 
 /* --- 2. Layout & Containers --- */
 .lobby-container {
+  box-sizing: border-box;
   width: 90%;
   max-width: 1025px;
   margin: 20px auto;

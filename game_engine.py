@@ -823,7 +823,7 @@ class Game:
                 p_name = self.players[player_id].name
                 # Fix: Mask ghost names
                 if not self.players[player_id].is_alive:
-                    p_name = "Ghost"
+                    p_name = "ui.game.ghost_name"
                 result_data["summary"][vote].append(p_name)
 
         # Determine Lynch Result
